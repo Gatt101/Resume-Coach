@@ -52,6 +52,292 @@ export const helloWorld = inngest.createFunction(
   },
 );
 
+export const ResumeGapAnalysisAgent = createAgent({
+  name: "ResumeGapAnalysisAgent",
+  description: 'Expert AI agent that analyzes resume gaps against target roles and provides personalized learning paths',
+  system: `You are an expert career development AI with deep knowledge of skill requirements across different roles and industries.
+
+Your mission is to identify skill gaps between a candidate's current resume and their target role, then provide a comprehensive guided learning path.
+
+ANALYSIS APPROACH:
+1. ANALYZE the candidate's current skills, experience, and background
+2. COMPARE against the target role requirements and industry standards
+3. IDENTIFY specific skill gaps and areas for improvement
+4. PRIORITIZE gaps based on impact and market demand
+5. CREATE a structured learning path with realistic timelines
+6. RECOMMEND high-quality learning resources (YouTube, courses, certifications)
+
+OUTPUT REQUIREMENTS:
+- Provide detailed gap analysis with specific missing skills
+- Create a prioritized learning path (4-8 modules)
+- Include realistic time estimates for each learning module
+- Recommend diverse learning resources (YouTube videos, online courses, documentation)
+- Consider the candidate's experience level and learning pace
+- Focus on practical, applicable skills that will make immediate impact
+
+LEARNING PATH STRUCTURE:
+- Module Title: Clear, specific skill/topic
+- Description: What they'll learn and why it matters
+- Priority: 1-5 (1 = highest priority)
+- Duration: Realistic weeks to complete
+- Effort: Hours per week required
+- Resources: Mix of free and paid options with URLs
+- Prerequisites: What they need to know first`,
+  
+  model: gemini({
+    model: "gemini-2.0-flash-exp",
+    apiKey: process.env.API_KEY,
+  }),
+});
+
+export const analyzeResumeGapsFunction = inngest.createFunction(
+  { 
+    id: "analyze-resume-gaps",
+    retries: 3,
+    cancelOn: [
+      { event: "resume-gaps/cancel", match: "data.eventId" }
+    ]
+  },
+  { event: "resume-gaps/analyze" },
+  async ({ event, step }) => {
+    const { resumeData, targetRole, userId, resumeId } = event.data;
+    
+    // Step 1: Validate input data
+    const validatedInput = await step.run("validate-input", async () => {
+      if (!resumeData || !targetRole) {
+        throw new Error("Resume data and target role are required");
+      }
+      
+      return {
+        resumeData,
+        targetRole: targetRole.trim(),
+        userId,
+        resumeId
+      };
+    });
+
+    // Step 2: Analyze resume gaps using AI
+    const gapAnalysis = await step.run("analyze-gaps", async () => {
+      const prompt = `
+RESUME DATA:
+${JSON.stringify(validatedInput.resumeData, null, 2)}
+
+TARGET ROLE:
+${validatedInput.targetRole}
+
+Please analyze this resume against the target role and provide:
+
+1. SKILL GAPS: List specific skills, technologies, or experience areas missing from the resume that are important for the target role
+
+2. EXPERIENCE GAPS: Identify any experience patterns or achievements that would strengthen the candidate's profile
+
+3. GUIDED LEARNING PATH: Create 4-8 learning modules to address the most critical gaps, including:
+   - Module title and description
+   - Priority (1-5, where 1 is highest)
+   - Estimated duration in weeks
+   - Effort hours per week
+   - 2-3 learning resources with actual URLs (prefer YouTube channels, online courses, official docs)
+
+Focus on practical, market-relevant skills that will have immediate impact on the candidate's job prospects.
+
+Return the response as a JSON object with this structure:
+{
+  "skillGaps": ["gap1", "gap2", ...],
+  "experienceGaps": ["gap1", "gap2", ...],
+  "overallScore": 75,
+  "learningPath": [
+    {
+      "id": "module-1",
+      "title": "Module Title",
+      "description": "What they'll learn",
+      "priority": 1,
+      "estimatedWeeks": 3,
+      "effortHours": 8,
+      "resources": [
+        {
+          "title": "Resource Name",
+          "url": "https://example.com",
+          "type": "youtube|course|documentation|certification",
+          "duration": "2 hours"
+        }
+      ],
+      "prerequisites": [],
+      "confidence": 0.9
+    }
+  ],
+  "recommendations": ["rec1", "rec2", ...]
+}`;
+
+      try {
+        const result = await ResumeGapAnalysisAgent.run(prompt);
+        
+        // Try to parse the AI response as JSON
+        let analysis;
+        try {
+          // Extract content from the AI response following the existing pattern
+          let content;
+          if (result && result.output && result.output[0] && (result.output[0] as any).content) {
+            content = (result.output[0] as any).content;
+          } else {
+            content = typeof result === 'string' ? result : JSON.stringify(result);
+          }
+          
+          // Remove markdown code block markers if present
+          if (content.includes('```json')) {
+            content = content.replace(/```json\n?/g, '').replace(/\n?```/g, '');
+          } else if (content.includes('```')) {
+            content = content.replace(/```\n?/g, '').replace(/\n?```/g, '');
+          }
+          
+          content = content.trim();
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysis = JSON.parse(jsonMatch[0]);
+          } else {
+            analysis = JSON.parse(content);
+          }
+        } catch (parseError) {
+          console.log("Failed to parse AI response as JSON, using fallback");
+          // Fallback analysis if AI response isn't valid JSON
+          analysis = createFallbackAnalysis(validatedInput.resumeData, validatedInput.targetRole);
+        }
+
+        return analysis;
+      } catch (error) {
+        console.error("AI analysis failed:", error);
+        // Return fallback analysis
+        return createFallbackAnalysis(validatedInput.resumeData, validatedInput.targetRole);
+      }
+    });
+
+    // Step 3: Store results and send webhook
+    const result = await step.run("store-and-notify", async () => {
+      // You could store the analysis in your database here
+      // For now, we'll just return the results
+      
+      return {
+        success: true,
+        analysis: gapAnalysis,
+        resumeId: validatedInput.resumeId,
+        userId: validatedInput.userId,
+        analyzedAt: new Date().toISOString()
+      };
+    });
+
+    return result;
+  },
+);
+
+// Fallback analysis function for when AI fails
+function createFallbackAnalysis(resumeData: any, targetRole: string) {
+  const skills = resumeData?.skills || [];
+  const experience = resumeData?.experience || [];
+  const summary = resumeData?.summary || '';
+  
+  // Basic role-based analysis
+  const roleKeywords = targetRole.toLowerCase();
+  let skillGaps = [];
+  let learningPath = [];
+  
+  // Common tech skills analysis
+  if (roleKeywords.includes('react') && !skills.some((s: string) => s.toLowerCase().includes('react'))) {
+    skillGaps.push('React.js');
+    learningPath.push({
+      id: 'react-fundamentals',
+      title: 'React.js Fundamentals',
+      description: 'Learn React components, hooks, and modern patterns',
+      priority: 1,
+      estimatedWeeks: 4,
+      effortHours: 10,
+      resources: [
+        {
+          title: 'React Official Tutorial',
+          url: 'https://react.dev/learn',
+          type: 'documentation',
+          duration: '8 hours'
+        },
+        {
+          title: 'React Course by Academind',
+          url: 'https://www.youtube.com/watch?v=Ke90Tje7VS0',
+          type: 'youtube',
+          duration: '12 hours'
+        }
+      ],
+      prerequisites: ['JavaScript ES6+'],
+      confidence: 0.9
+    });
+  }
+  
+  if (roleKeywords.includes('typescript') && !skills.some((s: string) => s.toLowerCase().includes('typescript'))) {
+    skillGaps.push('TypeScript');
+    learningPath.push({
+      id: 'typescript-basics',
+      title: 'TypeScript for JavaScript Developers',
+      description: 'Add type safety to your JavaScript projects',
+      priority: 2,
+      estimatedWeeks: 3,
+      effortHours: 8,
+      resources: [
+        {
+          title: 'TypeScript Handbook',
+          url: 'https://www.typescriptlang.org/docs/',
+          type: 'documentation',
+          duration: '6 hours'
+        },
+        {
+          title: 'TypeScript Course by Net Ninja',
+          url: 'https://www.youtube.com/playlist?list=PL4cUxeGkcC9gUgr39Q_yD6v-bSyMwDPUI',
+          type: 'youtube',
+          duration: '5 hours'
+        }
+      ],
+      prerequisites: ['JavaScript'],
+      confidence: 0.8
+    });
+  }
+  
+  if (roleKeywords.includes('aws') || roleKeywords.includes('cloud')) {
+    skillGaps.push('Cloud Computing (AWS)');
+    learningPath.push({
+      id: 'aws-fundamentals',
+      title: 'AWS Cloud Fundamentals',
+      description: 'Core AWS services and cloud architecture patterns',
+      priority: 3,
+      estimatedWeeks: 6,
+      effortHours: 12,
+      resources: [
+        {
+          title: 'AWS Training and Certification',
+          url: 'https://aws.amazon.com/training/',
+          type: 'course',
+          duration: '20 hours'
+        },
+        {
+          title: 'AWS Fundamentals by freeCodeCamp',
+          url: 'https://www.youtube.com/watch?v=ulprqHHWlng',
+          type: 'youtube',
+          duration: '4 hours'
+        }
+      ],
+      prerequisites: ['Basic networking concepts'],
+      confidence: 0.7
+    });
+  }
+  
+  return {
+    skillGaps,
+    experienceGaps: experience.length < 2 ? ['Limited work experience', 'Need more project examples'] : [],
+    overallScore: Math.max(60, Math.min(90, 70 + (skills.length * 2) + (experience.length * 5))),
+    learningPath,
+    recommendations: [
+      'Focus on practical projects to demonstrate skills',
+      'Build a portfolio showcasing your abilities',
+      'Consider contributing to open source projects',
+      'Network with professionals in your target field'
+    ]
+  };
+}
+
 export const generateResumeFunction = inngest.createFunction(
   { 
     id: "generate-resume",

@@ -246,14 +246,15 @@ export default function ChatPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-gray-900 text-white">
-            <aside className="w-80 bg-gray-800 border-r border-gray-700 p-4 flex flex-col">
+        <div className="m-4 min-h-screen bg-dark p-6 text-white">
+            <div className="max-w-6xl mx-auto flex gap-6">
+                <aside className="w-80 bg-gray-800/50 border-r border-gray-700 p-4 flex flex-col rounded-lg">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold">Chat History</h2>
                     <Button 
                         size="sm" 
                         onClick={newChat}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-green-600 hover:bg-green-700 text-white"
                     >
                         + New Chat
                     </Button>
@@ -265,14 +266,14 @@ export default function ChatPage() {
                         value={sessionSearch}
                         onChange={(e) => setSessionSearch(e.target.value)}
                         placeholder="Search chats..."
-                        className="w-full pl-9 pr-3 py-2 rounded-md bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-9 pr-3 py-2 rounded-md bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
-                    {sessionsLoading ? (
+                            {sessionsLoading ? (
                         <div className="flex items-center justify-center py-6">
-                            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                            <Loader2 className="w-5 h-5 animate-spin text-green-600" />
                         </div>
                     ) : chatSessions.length === 0 ? (
                         <div className="text-sm text-center text-gray-400 py-6">
@@ -291,7 +292,7 @@ export default function ChatPage() {
                                             onClick={() => loadChatSession(session.id)}
                                             className={`w-full text-left p-3 rounded-lg flex flex-col gap-1 transition-colors ${
                                                 selectedSession === session.id 
-                                                    ? 'bg-blue-600 text-white' 
+                                                    ? 'bg-green-600 text-white' 
                                                     : 'hover:bg-gray-700 text-gray-200'
                                             }`}
                                         >
@@ -314,7 +315,7 @@ export default function ChatPage() {
                 </div>
             </aside>
 
-            <main className="flex-1 p-6">
+            <main className="flex-1">
                 <div className="flex items-center gap-4 mb-6">
                     <Button 
                         variant="outline" 
@@ -325,18 +326,18 @@ export default function ChatPage() {
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-600 rounded-lg">
+                            <div className="p-2 bg-green-600 rounded-lg">
                             <MessageSquare className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold">AI Career Chat</h1>
+                            <h1 className="text-3xl font-bold">AI Career Chat</h1>
                             <p className="text-gray-400">Ask about resumes, interviews, or career growth — get tailored suggestions.</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="max-w-3xl mx-auto">
-                    <Card className="h-[75vh] flex flex-col bg-gray-800 border-gray-700">
+                <div className="max-w-4xl mx-auto w-full">
+                    <Card className="h-[75vh] flex flex-col bg-gray-800 border-gray-700 rounded-lg">
                         <CardHeader className="flex-shrink-0">
                             <CardTitle className="flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5" />
@@ -352,13 +353,13 @@ export default function ChatPage() {
                                 )}
                                 {messages.map((m) => (
                                     <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
-                                        <div className={`${
-                                            m.role === 'user' 
-                                                ? 'bg-blue-600 text-white' 
-                                                : m.role === 'system' 
-                                                ? 'bg-gray-700 text-gray-200' 
-                                                : 'bg-gray-700 text-gray-100'
-                                        } px-4 py-3 rounded-lg shadow-sm max-w-[85%] break-words`}>
+                                            <div className={`${
+                                                m.role === 'user' 
+                                                    ? 'bg-green-600 text-white' 
+                                                    : m.role === 'system' 
+                                                    ? 'bg-gray-700 text-gray-200' 
+                                                    : 'bg-gray-700 text-gray-100'
+                                            } px-4 py-3 rounded-lg shadow-sm max-w-[85%] break-words`}>
                                             <div className="prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden">
                                                 {renderMessageContent(m.text)}
                                             </div>
@@ -369,7 +370,7 @@ export default function ChatPage() {
                                 {sending && (
                                     <div className="flex justify-start mb-4">
                                         <div className="bg-gray-700 px-4 py-3 rounded-lg shadow-sm flex items-center gap-3">
-                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                            <Loader2 className="w-4 h-4 animate-spin text-green-600" />
                                             <div className="text-sm text-gray-200">AI is typing...</div>
                                         </div>
                                     </div>
@@ -389,7 +390,7 @@ export default function ChatPage() {
                                     <Button 
                                         onClick={onSend} 
                                         disabled={sending || input.trim().length === 0} 
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        className="bg-green-600 hover:bg-green-700"
                                     >
                                         <Send className="w-4 h-4 mr-2" />
                                         {sending ? 'Sending...' : 'Send'}
@@ -400,6 +401,7 @@ export default function ChatPage() {
                     </Card>
                 </div>
             </main>
+            </div>
         </div>
     )
 }

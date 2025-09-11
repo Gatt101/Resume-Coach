@@ -3,6 +3,34 @@ import { auth } from "@clerk/nextjs/server";
 import Resume from "@/models/resume";
 import { connect } from "@/lib/mongoose";
 
+export async function GET(){
+  try {
+    // Check authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Connect to database
+    await connect();
+
+    // Fetch user's resumes
+    const resumes = await Resume.find({ userId });
+    return new Response(
+      JSON.stringify({ resumes }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Save resume error:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error while saving resume" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
 export async function POST(req: NextRequest) {
   try {
     // Check authentication

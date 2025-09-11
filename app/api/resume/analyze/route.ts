@@ -288,7 +288,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const url = new URL(request.url);
+    function safeParseUrl(request: NextRequest) {
+      try { return new URL(request.url); }
+      catch (e) { const host = request.headers?.get?.('host') || 'localhost'; return new URL(request.url, `http://${host}`); }
+    }
+    const url = safeParseUrl(request);
     const resumeId = url.searchParams.get('resumeId');
 
     if (resumeId) {

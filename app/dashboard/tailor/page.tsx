@@ -39,10 +39,7 @@ export default function TailorPage()
   const [dragOver, setDragOver] = useState(false);
   const [tempLocalResume, setTempLocalResume] = useState<any | null>(null);
   const [tempLocalFile, setTempLocalFile] = useState<File | null>(null);
-<<<<<<< HEAD
-=======
   const [uploadedResumeOptions, setUploadedResumeOptions] = useState<any[]>([]);
->>>>>>> my-feature-branch
 
   // Handle file selection from input
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,9 +134,8 @@ export default function TailorPage()
       }
 
       setSuccess("Resume uploaded successfully!");
-<<<<<<< HEAD
-=======
-      
+
+
       // Create multiple template options from the uploaded resume
       const extractedData = data.resume.data;
       
@@ -200,7 +196,6 @@ export default function TailorPage()
       
       setUploadedResumeOptions(uploadedOptions);
       
->>>>>>> my-feature-branch
       // Prevent duplicates: only add server resume once
       setResumes((prev) => {
         if (prev.some(r => String(r._id) === String(data.resume._id))) return prev;
@@ -262,32 +257,12 @@ export default function TailorPage()
   };
 
   const handleResumeSelect = (resume: Resume) => {
-<<<<<<< HEAD
+
     setSelectedResume(resume);
     setTailoredResume(null);
     setActiveTab("tailor");
     setError(null);
     setSuccess(null);
-  };
-
-  const handleTailorResume = async () => {
-=======
-    try {
-      // Validate resume object
-      if (!resume || !resume._id) {
-        setError("Invalid resume selected. Please try again.");
-        return;
-      }
-
-      setSelectedResume(resume);
-      setTailoredResume(null);
-      setActiveTab("tailor");
-      setError(null);
-      setSuccess(`Selected resume: ${resume.title}`);
-    } catch (error) {
-      console.error("Error selecting resume:", error);
-      setError("Failed to select resume. Please try again.");
-    }
   };
 
   const handleTailorResume = async () => {
@@ -300,17 +275,23 @@ export default function TailorPage()
       setError("Please provide a job description.");
       return;
     }
-<<<<<<< HEAD
-=======
-    
->>>>>>> my-feature-branch
+
     if (!selectedResume) {
       setError("Please select a resume to tailor.");
       return;
     }
 
-<<<<<<< HEAD
-=======
+    // Extract the actual resume ID, handling template variations
+    let actualResumeId = selectedResume._id;
+    
+    // If this is a template variation (modern-, professional-, etc.), extract the original ID
+    if (actualResumeId.includes('-')) {
+      const parts = actualResumeId.split('-');
+      if (parts.length > 1 && ['original', 'modern', 'professional', 'creative'].includes(parts[0])) {
+        actualResumeId = parts.slice(1).join('-');
+      }
+    }
+
     // Check if resume has valid ID
     if (!actualResumeId || actualResumeId === '') {
       setError("Selected resume is invalid. Please try selecting a different resume.");
@@ -418,8 +399,7 @@ export default function TailorPage()
         </div>
       );
     }
-    
->>>>>>> my-feature-branch
+
     // If this is a temporarily stored file (base64 PDF), show an embed preview
     if (resumeData?.file && resumeData.file.base64) {
       const base64 = resumeData.file.base64;
@@ -491,8 +471,7 @@ export default function TailorPage()
       }
       setTempLocalResume(temp);
       setTempLocalFile(file);
-<<<<<<< HEAD
-=======
+
       
       console.log('Saved temp resume with file data:', {
         name: file.name,
@@ -501,7 +480,7 @@ export default function TailorPage()
         hasBase64: !!base64
       });
       
->>>>>>> my-feature-branch
+
       setSuccess('Saved resume locally for temporary use');
       setError(null);
     } catch (err) {
@@ -665,7 +644,14 @@ export default function TailorPage()
             ${data.experience && data.experience.length > 0 ? `
             <div class="section">
               <div class="section-title">Professional Experience</div>
-              ${data.experience.map((exp: any) => `
+              ${data.experience.map((exp: any) => {
+                const achievementsList = exp.achievements && exp.achievements.length > 0 
+                  ? `<ul style="margin: 0; padding-left: 20px;">
+                      ${exp.achievements.map((achievement: string) => `<li style="margin-bottom: 5px;">${achievement}</li>`).join('')}
+                    </ul>`
+                  : '';
+                
+                return `
                 <div class="experience-item">
                   <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
                     <div class="job-title">${exp.title || ''}</div>
@@ -673,13 +659,9 @@ export default function TailorPage()
                   </div>
                   <div class="company">${exp.company || ''}</div>
                   ${exp.description ? `<p style="margin-bottom: 10px; text-align: justify;">${exp.description}</p>` : ''}
-                  ${exp.achievements && exp.achievements.length > 0 ? `
-                    <ul style="margin: 0; padding-left: 20px;">
-                      ${exp.achievements.map((achievement: string) => `<li style="margin-bottom: 5px;">${achievement}</li>`).join('')}
-                    </ul>
-                  ` : ''}
-                </div>
-              `).join('')}
+                  ${achievementsList}
+                </div>`;
+              }).join('')}
             </div>
             ` : ''}
 
@@ -705,18 +687,21 @@ export default function TailorPage()
             ${data.projects && data.projects.length > 0 ? `
             <div class="section">
               <div class="section-title">Projects</div>
-              ${data.projects.map((project: any) => `
+              ${data.projects.map((project: any) => {
+                const techList = project.technologies && project.technologies.length > 0 
+                  ? `<div style="font-size: 14px; color: #7f8c8d;">
+                      <strong>Technologies:</strong> ${project.technologies.join(', ')}
+                    </div>`
+                  : '';
+                
+                return `
                 <div style="margin-bottom: 15px;">
                   <h3 style="font-size: 16px; margin: 0 0 5px 0; color: #34495e; font-weight: 600;">${project.name || ''}</h3>
                   ${project.description ? `<p style="margin-bottom: 8px;">${project.description}</p>` : ''}
-                  ${project.technologies && project.technologies.length > 0 ? `
-                    <div style="font-size: 14px; color: #7f8c8d;">
-                      <strong>Technologies:</strong> ${project.technologies.join(', ')}
-                    </div>
-                  ` : ''}
+                  ${techList}
                   ${project.link ? `<div style="margin-top: 5px;"><a href="${project.link}" style="color: #3498db; font-size: 14px;">${project.link}</a></div>` : ''}
-                </div>
-              `).join('')}
+                </div>`;
+              }).join('')}
             </div>
             ` : ''}
 
@@ -958,7 +943,7 @@ export default function TailorPage()
 
                     {/* Show locally stored temp resume (if any) */}
                     {tempLocalResume && uploadedResumeOptions.length === 0 && (
->>>>>>> my-feature-branch
+
                       <div className={`p-4 border rounded-lg transition-all bg-yellow-50`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -1010,15 +995,15 @@ export default function TailorPage()
                     {resumes.length > 0 && (
                       <div className="grid gap-4 md:grid-cols-2">
                         {resumes.map((resume) => (
-                         <div
-                           key={resume._id}
-                           className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                             selectedResume && selectedResume._id === resume._id
-                               ? "border-purple-500 bg-purple-50"
-                               : "border-gray-200 hover:border-gray-300"
-                           }`}
-                           onClick={() => handleResumeSelect(resume)}
-                         >
+                          <div
+                            key={resume._id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                              selectedResume && selectedResume._id === resume._id
+                                ? "border-purple-500 bg-purple-50"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => handleResumeSelect(resume)}
+                          >
                            <div className="flex items-start justify-between">
                              <div className="flex-1">
                                <h3 className="font-semibold text-gray-400">{resume.title}</h3>
