@@ -1,173 +1,105 @@
-<<<<<<< HEAD
-# Resume Coach
+# AI Resume Coach
 
-Resume Coach is a Next.js application that helps users build and improve resumes with AI-powered suggestions, templates, and export options. This README provides an overview, setup instructions, usage examples, development notes, and contribution guidelines to get you started.
-
-
-## Table of Contents
-
-- [Features](#features)
-- [Demo](#demo)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Running Locally](#running-locally)
-- [Environment Variables](#environment-variables)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-
+AI Resume Coach is a Next.js application that helps users build and improve resumes with AI-powered suggestions, OCR processing, multi-template support, and intelligent job-specific tailoring.
 
 ## Features
 
-- AI-powered resume suggestions and improvements
-- Multiple resume templates
-- Export resumes as PDF
-- Responsive UI built with Next.js
-- Easy local development and deployment
-
-
-## Demo
-
-Open http://localhost:3000 after running the development server. If you have a deployed instance, add a link here.
-
+- **AI-Powered Resume Analysis**: Upload resumes in PDF, DOC, or DOCX format with intelligent text extraction
+- **Smart Resume Tailoring**: Optimize resumes for specific job descriptions with ATS score improvement
+- **Multiple Templates**: Choose from Modern, Professional, Creative, and Classic resume templates
+- **OCR Processing**: Extract and parse resume content using Gemini AI Vision API
+- **ATS Optimization**: Show before/after ATS scores with keyword enhancement
+- **Real-time Preview**: Live preview of resume changes and template switching
+- **Export Options**: Download tailored resumes as PDF
 
 ## Tech Stack
 
-- Next.js (App Router)
-- React
-- TypeScript (if used)
-- Tailwind CSS (if used)
-- Node.js
+- **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, MongoDB
+- **AI Integration**: Google Gemini AI, Gemini Vision API
+- **Authentication**: Clerk
+- **File Processing**: Mammoth (DOCX), PDF processing
+- **UI Components**: Custom components with Lucide icons
 
-
-## Prerequisites
-
-- Node.js 14+ (recommended 16+)
-- npm, yarn, or pnpm
-
-
-## Installation
+## Getting Started
 
 1. Clone the repository:
-
 ```bash
 git clone https://github.com/Gatt101/Resume-Coach.git
 cd Resume-Coach
 ```
 
-2. Install dependencies (choose one):
-
+2. Install dependencies:
 ```bash
 npm install
-# or
-yarn
-# or
-pnpm install
 ```
 
+3. Set up environment variables:
+```bash
+# Create .env.local file
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
+CLERK_SECRET_KEY=your_clerk_secret
+GEMINI_API_KEY=your_gemini_api_key
+MONGODB_URI=your_mongodb_connection_string
+```
 
-## Running Locally
-
-Start the development server:
-=======
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
->>>>>>> my-feature-branch
-
+4. Run the development server:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-<<<<<<< HEAD
-Open http://localhost:3000 in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Key Features
 
-## Building for Production
+### Resume Upload & Processing
+- Drag-and-drop file upload
+- Support for PDF, DOC, DOCX formats
+- AI-powered text extraction and parsing
+- Automatic resume data structuring
 
-```bash
-npm run build
-npm run start
-```
+### Job-Specific Tailoring
+- Paste job descriptions for analysis
+- Keyword extraction and optimization
+- ATS score calculation and improvement
+- Before/after comparison with metrics
 
-
-## Environment Variables
-
-Create a .env.local file in the project root for local secrets (do not commit this file):
-
-```
-# Example
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-Adjust names based on how your app reads them.
-
+### Template System
+- Multiple professional templates
+- Real-time template switching
+- Responsive design for all devices
+- Print-optimized layouts
 
 ## Project Structure
 
-A suggested layout — update to match the actual repository:
-
 ```
-/app                # Next.js app router pages
-/components         # Reusable React components
-/lib                # Utilities and API helpers
-/public             # Static assets
-/styles             # Global styles and Tailwind config
+/app
+  /api
+    /resume/tailor     # Resume tailoring API
+    /user/upload       # File upload processing
+  /dashboard
+    /tailor           # Resume tailoring interface
+    /builder          # Resume builder
+/components
+  /resume-templates   # Template components
+  /ui                # Reusable UI components
+/lib                 # Utilities and database
+/models              # MongoDB schemas
 ```
-
 
 ## Contributing
 
-Contributions are welcome! To contribute:
-
 1. Fork the repository
-2. Create a feature branch: git checkout -b feature/my-feature
-3. Commit your changes: git commit -m "feat: add ..."
-4. Push to your branch and open a Pull Request
-
-Please follow repository coding conventions and include tests where appropriate.
-
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
 ## License
 
-This project is released under the MIT License. See LICENSE for details.
-
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Contact
 
-Maintainer: Gatt101 (https://github.com/Gatt101)
-
-If you'd like, provide links to issues, discussions, or a CONTRIBUTING.md file.
-=======
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
->>>>>>> my-feature-branch
+- GitHub: [@Gatt101](https://github.com/Gatt101)
+- Project Link: [https://github.com/Gatt101/Resume-Coach](https://github.com/Gatt101/Resume-Coach)

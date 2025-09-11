@@ -134,19 +134,28 @@ export default function TailorPage()
       }
 
       setSuccess("Resume uploaded successfully!");
-      
+
+
       // Create multiple template options from the uploaded resume
       const extractedData = data.resume.data;
       
       // Get the original file data from tempLocalResume
       const originalFileData = tempLocalResume?.data?.file;
       
-      console.log('Creating options with original file data:', {
+      console.log('Creating template options with OCR data:', {
         hasTempLocalResume: !!tempLocalResume,
         hasFileData: !!originalFileData,
         fileName: originalFileData?.name,
         fileType: originalFileData?.type,
-        hasBase64: !!originalFileData?.base64
+        hasBase64: !!originalFileData?.base64,
+        extractedDataKeys: Object.keys(extractedData || {}),
+        extractedDataSample: {
+          name: extractedData?.name,
+          email: extractedData?.email,
+          summary: extractedData?.summary?.substring(0, 100) + '...',
+          skillsCount: extractedData?.skills?.length || 0,
+          experienceCount: extractedData?.experience?.length || 0
+        }
       });
       
       const uploadedOptions = [
@@ -167,21 +176,21 @@ export default function TailorPage()
           _id: `modern-${data.resume._id}`,
           title: `${data.resume.title} (Modern Template)`,
           template: 'modern',
-          data: extractedData
+          data: extractedData // This should contain the OCR extracted data
         },
         {
           ...data.resume,
           _id: `professional-${data.resume._id}`,
           title: `${data.resume.title} (Professional Template)`,
           template: 'professional',
-          data: extractedData
+          data: extractedData // This should contain the OCR extracted data
         },
         {
           ...data.resume,
           _id: `creative-${data.resume._id}`,
           title: `${data.resume.title} (Creative Template)`,
           template: 'creative',
-          data: extractedData
+          data: extractedData // This should contain the OCR extracted data
         }
       ];
       
@@ -248,22 +257,12 @@ export default function TailorPage()
   };
 
   const handleResumeSelect = (resume: Resume) => {
-    try {
-      // Validate resume object
-      if (!resume || !resume._id) {
-        setError("Invalid resume selected. Please try again.");
-        return;
-      }
 
-      setSelectedResume(resume);
-      setTailoredResume(null);
-      setActiveTab("tailor");
-      setError(null);
-      setSuccess(`Selected resume: ${resume.title}`);
-    } catch (error) {
-      console.error("Error selecting resume:", error);
-      setError("Failed to select resume. Please try again.");
-    }
+    setSelectedResume(resume);
+    setTailoredResume(null);
+    setActiveTab("tailor");
+    setError(null);
+    setSuccess(null);
   };
 
   const handleTailorResume = async () => {
@@ -276,20 +275,31 @@ export default function TailorPage()
       setError("Please provide a job description.");
       return;
     }
-    
+
     if (!selectedResume) {
       setError("Please select a resume to tailor.");
       return;
     }
 
+    // Extract the actual resume ID, handling template variations
+    let actualResumeId = selectedResume._id;
+    
+    // If this is a template variation (modern-, professional-, etc.), extract the original ID
+    if (actualResumeId.includes('-')) {
+      const parts = actualResumeId.split('-');
+      if (parts.length > 1 && ['original', 'modern', 'professional', 'creative'].includes(parts[0])) {
+        actualResumeId = parts.slice(1).join('-');
+      }
+    }
+
     // Check if resume has valid ID
-    if (!selectedResume._id || selectedResume._id === '') {
+    if (!actualResumeId || actualResumeId === '') {
       setError("Selected resume is invalid. Please try selecting a different resume.");
       return;
     }
 
     // Prevent tailoring if resume is only stored locally
-    if ((selectedResume as any)?.metadata?.method === 'local' || String(selectedResume._id).startsWith('local-')) {
+    if ((selectedResume as any)?.metadata?.method === 'local' || String(actualResumeId).startsWith('local-')) {
       setError('This resume is stored locally in your browser. Please click "Save to Account" first to upload it before tailoring.');
       return;
     }
@@ -299,20 +309,28 @@ export default function TailorPage()
     setSuccess(null);
 
     try {
+      console.log('Tailoring resume with ID:', actualResumeId);
+      
       const response = await fetch("/api/resume/tailor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          resumeId: selectedResume._id,
+          resumeId: actualResumeId,
           jobDescription,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to tailor resume");
+        let errorMessage = "Failed to tailor resume";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError);
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -329,6 +347,17 @@ export default function TailorPage()
 
   const renderResumeTemplate = (resumeData: any, template: string, originalFile?: any) => {
     if (!resumeData) return null;
+    
+    // Debug logging to see what data is being passed
+    console.log('Rendering template:', template, 'with data:', {
+      hasResumeData: !!resumeData,
+      dataKeys: Object.keys(resumeData || {}),
+      name: resumeData?.name,
+      email: resumeData?.email,
+      summaryLength: resumeData?.summary?.length || 0,
+      skillsCount: resumeData?.skills?.length || 0,
+      experienceCount: resumeData?.experience?.length || 0
+    });
     
     // Handle original document display
     if (template === 'original') {
@@ -370,7 +399,7 @@ export default function TailorPage()
         </div>
       );
     }
-    
+
     // If this is a temporarily stored file (base64 PDF), show an embed preview
     if (resumeData?.file && resumeData.file.base64) {
       const base64 = resumeData.file.base64;
@@ -442,6 +471,7 @@ export default function TailorPage()
       }
       setTempLocalResume(temp);
       setTempLocalFile(file);
+
       
       console.log('Saved temp resume with file data:', {
         name: file.name,
@@ -450,6 +480,7 @@ export default function TailorPage()
         hasBase64: !!base64
       });
       
+
       setSuccess('Saved resume locally for temporary use');
       setError(null);
     } catch (err) {
@@ -479,6 +510,268 @@ export default function TailorPage()
     setTempLocalFile(null);
     setSuccess(null);
   }
+
+  // Template-specific download function that uses actual template styling
+  const downloadSpecificResume = async (resumeData: any, template: string, resumeId: string) => {
+    try {
+      setSuccess(`Downloading ${resumeData.title || 'resume'} with ${template} template...`);
+      
+      // Get the actual resume data - handle both direct data and nested data structure
+      const actualData = resumeData.data || resumeData;
+      
+      console.log('Download data for', template, ':', {
+        resumeId,
+        hasData: !!actualData,
+        dataKeys: Object.keys(actualData || {}),
+        name: actualData?.name,
+        template: template
+      });
+
+      // Create template-specific HTML based on the template type
+      const createTemplateHTML = (data: any, templateType: string) => {
+        // Base styles for all templates
+        const baseStyles = `
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: white;
+            padding: 40px;
+          }
+          @media print {
+            body { padding: 20px; margin: 0; }
+            .no-print { display: none !important; }
+          }
+          @page {
+            size: A4;
+            margin: 0.75in;
+          }
+          h1, h2, h3 { page-break-after: avoid; }
+          .section { page-break-inside: avoid; margin-bottom: 25px; }
+        `;
+
+        // Template-specific styling
+        let templateStyles = '';
+        let headerClass = '';
+        let sectionClass = '';
+
+        switch (templateType) {
+          case 'modern':
+            templateStyles = `
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #3498db; }
+              .name { font-size: 32px; font-weight: 300; color: #2c3e50; margin-bottom: 10px; }
+              .contact { font-size: 14px; color: #7f8c8d; }
+              .section-title { font-size: 20px; color: #3498db; margin-bottom: 15px; font-weight: 600; }
+              .experience-item { margin-bottom: 20px; padding-left: 20px; border-left: 3px solid #ecf0f1; }
+              .job-title { font-size: 18px; font-weight: 600; color: #2c3e50; }
+              .company { color: #3498db; font-weight: 500; margin-bottom: 8px; }
+              .skills-container { display: flex; flex-wrap: wrap; gap: 10px; }
+              .skill { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; }
+            `;
+            break;
+          case 'professional':
+            templateStyles = `
+              .header { text-align: left; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #2c3e50; }
+              .name { font-size: 28px; font-weight: 700; color: #2c3e50; margin-bottom: 8px; }
+              .contact { font-size: 14px; color: #666; }
+              .section-title { font-size: 18px; color: #2c3e50; margin-bottom: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+              .experience-item { margin-bottom: 18px; }
+              .job-title { font-size: 16px; font-weight: 600; color: #2c3e50; }
+              .company { color: #666; font-weight: 500; margin-bottom: 6px; }
+              .skills-container { display: flex; flex-wrap: wrap; gap: 8px; }
+              .skill { background: #f8f9fa; border: 1px solid #dee2e6; padding: 6px 12px; border-radius: 4px; font-size: 13px; color: #495057; }
+            `;
+            break;
+          case 'creative':
+            templateStyles = `
+              .header { text-align: center; margin-bottom: 35px; padding: 25px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; }
+              .name { font-size: 30px; font-weight: 400; margin-bottom: 10px; }
+              .contact { font-size: 14px; opacity: 0.9; }
+              .section-title { font-size: 22px; color: #667eea; margin-bottom: 15px; font-weight: 500; position: relative; }
+              .section-title:after { content: ''; position: absolute; bottom: -5px; left: 0; width: 50px; height: 3px; background: linear-gradient(135deg, #667eea, #764ba2); }
+              .experience-item { margin-bottom: 22px; padding: 15px; background: #f8f9ff; border-radius: 8px; }
+              .job-title { font-size: 18px; font-weight: 600; color: #4c63d2; }
+              .company { color: #667eea; font-weight: 500; margin-bottom: 10px; }
+              .skills-container { display: flex; flex-wrap: wrap; gap: 12px; }
+              .skill { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 18px; border-radius: 25px; font-size: 14px; font-weight: 500; }
+            `;
+            break;
+          case 'classic':
+          default:
+            templateStyles = `
+              .header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #333; }
+              .name { font-size: 26px; font-weight: 600; color: #333; margin-bottom: 8px; }
+              .contact { font-size: 14px; color: #666; }
+              .section-title { font-size: 16px; color: #333; margin-bottom: 10px; font-weight: 600; text-decoration: underline; }
+              .experience-item { margin-bottom: 15px; }
+              .job-title { font-size: 15px; font-weight: 600; color: #333; }
+              .company { color: #666; margin-bottom: 5px; }
+              .skills-container { display: flex; flex-wrap: wrap; gap: 6px; }
+              .skill { background: #f5f5f5; padding: 4px 8px; border-radius: 3px; font-size: 12px; color: #333; }
+            `;
+        }
+
+        return `
+          <div style="max-width: 800px; margin: 0 auto;">
+            <style>
+              ${baseStyles}
+              ${templateStyles}
+            </style>
+            
+            <!-- Header -->
+            <div class="header">
+              <div class="name">${data.name || 'Professional Name'}</div>
+              <div class="contact">
+                ${data.email || ''} ${data.phone ? '• ' + data.phone : ''} ${data.location ? '• ' + data.location : ''}
+                ${data.linkedin ? '<br>' + data.linkedin : ''}
+              </div>
+            </div>
+
+            <!-- Professional Summary -->
+            ${data.summary ? `
+            <div class="section">
+              <div class="section-title">Professional Summary</div>
+              <p style="text-align: justify; line-height: 1.7;">${data.summary}</p>
+            </div>
+            ` : ''}
+
+            <!-- Experience -->
+            ${data.experience && data.experience.length > 0 ? `
+            <div class="section">
+              <div class="section-title">Professional Experience</div>
+              ${data.experience.map((exp: any) => {
+                const achievementsList = exp.achievements && exp.achievements.length > 0 
+                  ? `<ul style="margin: 0; padding-left: 20px;">
+                      ${exp.achievements.map((achievement: string) => `<li style="margin-bottom: 5px;">${achievement}</li>`).join('')}
+                    </ul>`
+                  : '';
+                
+                return `
+                <div class="experience-item">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
+                    <div class="job-title">${exp.title || ''}</div>
+                    <span style="font-size: 14px; color: #7f8c8d; font-style: italic;">${exp.years || ''}</span>
+                  </div>
+                  <div class="company">${exp.company || ''}</div>
+                  ${exp.description ? `<p style="margin-bottom: 10px; text-align: justify;">${exp.description}</p>` : ''}
+                  ${achievementsList}
+                </div>`;
+              }).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Skills -->
+            ${data.skills && data.skills.length > 0 ? `
+            <div class="section">
+              <div class="section-title">Skills & Expertise</div>
+              <div class="skills-container">
+                ${data.skills.map((skill: string) => `<span class="skill">${skill}</span>`).join('')}
+              </div>
+            </div>
+            ` : ''}
+
+            <!-- Education -->
+            ${data.education ? `
+            <div class="section">
+              <div class="section-title">Education</div>
+              <p>${data.education}</p>
+            </div>
+            ` : ''}
+
+            <!-- Projects -->
+            ${data.projects && data.projects.length > 0 ? `
+            <div class="section">
+              <div class="section-title">Projects</div>
+              ${data.projects.map((project: any) => {
+                const techList = project.technologies && project.technologies.length > 0 
+                  ? `<div style="font-size: 14px; color: #7f8c8d;">
+                      <strong>Technologies:</strong> ${project.technologies.join(', ')}
+                    </div>`
+                  : '';
+                
+                return `
+                <div style="margin-bottom: 15px;">
+                  <h3 style="font-size: 16px; margin: 0 0 5px 0; color: #34495e; font-weight: 600;">${project.name || ''}</h3>
+                  ${project.description ? `<p style="margin-bottom: 8px;">${project.description}</p>` : ''}
+                  ${techList}
+                  ${project.link ? `<div style="margin-top: 5px;"><a href="${project.link}" style="color: #3498db; font-size: 14px;">${project.link}</a></div>` : ''}
+                </div>`;
+              }).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Certifications -->
+            ${data.certifications && data.certifications.length > 0 ? `
+            <div class="section">
+              <div class="section-title">Certifications</div>
+              <ul style="margin: 0; padding-left: 20px;">
+                ${data.certifications.map((cert: string) => `<li style="margin-bottom: 5px;">${cert}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        `;
+      };
+
+      // Create print window
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        setError('Please allow popups to download PDF');
+        return;
+      }
+
+      const resumeHTML = createTemplateHTML(actualData, template);
+      const fileName = `${actualData.name || resumeData.title || 'resume'}-${template}`;
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${fileName}</title>
+          <meta charset="UTF-8">
+        </head>
+        <body>
+          ${resumeHTML}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 1000);
+            }
+            
+            window.onafterprint = function() {
+              window.close();
+            }
+          </script>
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      setSuccess(`Opening print dialog for ${fileName}. Choose "Save as PDF" to download.`);
+      
+    } catch (error) {
+      console.error('Error downloading resume:', error);
+      setError(`Failed to download resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+
+
+  // Download tailored resume as PDF
+  const downloadTailoredResumePDF = async () => {
+    if (!tailoredResume || !selectedResume) {
+      setError('No tailored resume available for download.');
+      return;
+    }
+    
+    await downloadSpecificResume(tailoredResume, selectedResume.template || 'modern', 'tailored-' + selectedResume._id);
+  };
 
   return (
     <div className="min-h-screen bg-dark p-6">
@@ -607,7 +900,7 @@ export default function TailorPage()
                                 </div>
                                 
                                 <div className="bg-white rounded border max-h-32 overflow-hidden">
-                                  <div className="scale-25 transform-gpu origin-top-left w-[400%]">
+                                  <div className="scale-25 transform-gpu origin-top-left w-[400%]" data-resume-preview="true">
                                     {renderResumeTemplate(
                                       option.data, 
                                       option.template, 
@@ -629,6 +922,17 @@ export default function TailorPage()
                                   >
                                     Select
                                   </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="text-xs"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await downloadSpecificResume(option, option.template, option._id);
+                                    }}
+                                  >
+                                    <Download className="w-3 h-3" />
+                                  </Button>
                                 </div>
                               </div>
                             </div>
@@ -639,6 +943,7 @@ export default function TailorPage()
 
                     {/* Show locally stored temp resume (if any) */}
                     {tempLocalResume && uploadedResumeOptions.length === 0 && (
+
                       <div className={`p-4 border rounded-lg transition-all bg-yellow-50`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -690,15 +995,15 @@ export default function TailorPage()
                     {resumes.length > 0 && (
                       <div className="grid gap-4 md:grid-cols-2">
                         {resumes.map((resume) => (
-                         <div
-                           key={resume._id}
-                           className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                             selectedResume && selectedResume._id === resume._id
-                               ? "border-purple-500 bg-purple-50"
-                               : "border-gray-200 hover:border-gray-300"
-                           }`}
-                           onClick={() => handleResumeSelect(resume)}
-                         >
+                          <div
+                            key={resume._id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                              selectedResume && selectedResume._id === resume._id
+                                ? "border-purple-500 bg-purple-50"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => handleResumeSelect(resume)}
+                          >
                            <div className="flex items-start justify-between">
                              <div className="flex-1">
                                <h3 className="font-semibold text-gray-400">{resume.title}</h3>
@@ -708,8 +1013,34 @@ export default function TailorPage()
                                <p className="text-xs text-gray-500 mt-2">
                                  Updated: {new Date(resume.updatedAt).toLocaleDateString()}
                                </p> 
-                               <div className="h-100 overflow-hidden mt-2 border border-gray-300 rounded">
+                               <div className="h-100 overflow-hidden mt-2 border border-gray-300 rounded" data-resume-preview="true">
                                {renderResumeTemplate(resume.data, resume.template)}
+                               </div>
+                               
+                               <div className="flex gap-2 mt-3">
+                                 <Button 
+                                   size="sm" 
+                                   variant="outline" 
+                                   className="flex-1 text-xs"
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     handleResumeSelect(resume);
+                                     setActiveTab("tailor");
+                                   }}
+                                 >
+                                   Select for Tailoring
+                                 </Button>
+                                 <Button 
+                                   size="sm" 
+                                   variant="outline" 
+                                   className="text-xs"
+                                   onClick={async (e) => {
+                                     e.stopPropagation();
+                                     await downloadSpecificResume(resume, resume.template || 'modern', resume._id);
+                                   }}
+                                 >
+                                   <Download className="w-3 h-3" />
+                                 </Button>
                                </div>
                              </div>
                              {selectedResume && selectedResume._id === resume._id && (
@@ -721,13 +1052,24 @@ export default function TailorPage()
                       </div>
                     )}
                   </div>
-                 )}
+                )}
                </CardContent>
              </Card>
+             
+             {/* Single Upload Section */}
              <Card>
+               <CardHeader>
+                 <CardTitle className="flex items-center gap-2">
+                   <FileText className="w-5 h-5" />
+                   Upload New Resume
+                 </CardTitle>
+                 <p className="text-gray-100">
+                   Upload a new resume file to add more options for tailoring
+                 </p>
+               </CardHeader>
                <CardContent>
                  <div
-                   className={`m-4 text-center py-12 border-dashed border-2 ${
+                   className={`text-center py-12 border-dashed border-2 ${
                      dragOver ? "border-purple-500 bg-purple-50" : "border-gray-700"
                    } rounded-lg`}
                    onDragOver={handleDragOver}
@@ -774,19 +1116,63 @@ export default function TailorPage()
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Wand2 className="w-5 h-5" />
-                    Job Description
+                    Job Description Analysis
                   </CardTitle>
                   <p className="text-gray-600">
-                    Paste the job posting to tailor your resume
+                    Paste the complete job posting to optimize your resume for ATS systems
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Paste the complete job description here..."
-                    className="min-h-[300px] resize-none"
-                    value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Job URL (Optional)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://www.company.com/jobs/position"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                      <Button variant="outline" size="sm">
+                        Extract
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Job Description *</label>
+                    <Textarea
+                      placeholder="Paste the complete job description here including:
+• Job title and company name
+• Required qualifications and skills
+• Job responsibilities and duties
+• Preferred experience and education
+• Company culture and values
+
+The more detailed the job description, the better we can optimize your resume for ATS systems."
+                      className="min-h-[300px] resize-none text-sm"
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Include only the responsibilities and qualifications sections for better results</span>
+                      <span>{jobDescription.length} characters</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <div className="w-4 h-4 bg-blue-500 rounded-full mt-0.5 flex-shrink-0"></div>
+                      <div className="text-sm">
+                        <p className="font-medium text-blue-900 mb-1">ATS Optimization Tips:</p>
+                        <ul className="text-blue-800 space-y-1 text-xs">
+                          <li>• Include exact keywords from the job posting</li>
+                          <li>• Match technical skills and certifications</li>
+                          <li>• Use industry-specific terminology</li>
+                          <li>• Highlight relevant experience and achievements</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <Button
                     onClick={handleTailorResume}
                     disabled={isTailoring || !jobDescription.trim() || !selectedResume}
@@ -795,12 +1181,12 @@ export default function TailorPage()
                     {isTailoring ? (
                       <>
                         <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                        Tailoring Resume...
+                        Analyzing & Tailoring Resume...
                       </>
                     ) : (
                       <>
                         <Wand2 className="mr-2 w-5 h-5" />
-                        Tailor Resume
+                        Analyze & Tailor Resume
                       </>
                     )}
                   </Button>
@@ -827,43 +1213,101 @@ export default function TailorPage()
 
           <TabsContent value="result" className="space-y-6">
             {tailoredResume && (
-              <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
+              <>
+                {/* ATS Score Improvement Section */}
+                <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
                   <CardHeader>
-                    <CardTitle>Original Resume</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-green-700">
+                      <CheckCircle className="w-5 h-5" />
+                      ATS Optimization Results
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="bg-white rounded-lg shadow-sm border max-h-[500px] overflow-y-auto">
-                      <div className="scale-50 transform-gpu origin-top-left w-[200%]">
-                        {selectedResume && renderResumeTemplate(selectedResume.data, selectedResume.template)}
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="text-center p-4 bg-white rounded-lg border">
+                        <div className="text-2xl font-bold text-red-600 mb-1">
+                          {tailoredResume.metadata?.originalScore || 45}%
+                        </div>
+                        <div className="text-sm text-gray-600">Original ATS Score</div>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <div className="flex items-center gap-2 text-green-600">
+                          <div className="w-8 h-0.5 bg-green-600"></div>
+                          <Wand2 className="w-5 h-5" />
+                          <div className="w-8 h-0.5 bg-green-600"></div>
+                        </div>
+                      </div>
+                      <div className="text-center p-4 bg-white rounded-lg border">
+                        <div className="text-2xl font-bold text-green-600 mb-1">
+                          {tailoredResume.metadata?.optimizationScore || 85}%
+                        </div>
+                        <div className="text-sm text-gray-600">Optimized ATS Score</div>
                       </div>
                     </div>
+                    
+                    {tailoredResume.metadata?.keywordsAdded && tailoredResume.metadata.keywordsAdded.length > 0 && (
+                      <div className="mt-4 p-4 bg-white rounded-lg border">
+                        <h4 className="font-semibold text-gray-700 mb-2">Keywords Added:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {tailoredResume.metadata.keywordsAdded.map((keyword: string, index: number) => (
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-purple-600">Tailored Resume</CardTitle>
-                      <Button
-                        size="sm"
-                        className="bg-purple-600 hover:bg-purple-700"
-                        onClick={() => window.print()}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-white rounded-lg shadow-sm border max-h-[500px] overflow-y-auto">
-                      <div className="scale-50 transform-gpu origin-top-left w-[200%]">
-                        {renderResumeTemplate(tailoredResume, selectedResume?.template || "modern")}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span>Original Resume</span>
+                        <span className="text-sm text-red-600 bg-red-50 px-2 py-1 rounded">
+                          ATS: {tailoredResume.metadata?.originalScore || 45}%
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-white rounded-lg shadow-sm border max-h-[500px] overflow-y-auto">
+                        <div className="scale-50 transform-gpu origin-top-left w-[200%]">
+                          {selectedResume && renderResumeTemplate(selectedResume.data, selectedResume.template)}
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-purple-600">Tailored Resume</CardTitle>
+                          <span className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                            ATS: {tailoredResume.metadata?.optimizationScore || 85}%
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700"
+                          onClick={downloadTailoredResumePDF}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Download PDF
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-white rounded-lg shadow-sm border max-h-[500px] overflow-y-auto">
+                        <div className="scale-50 transform-gpu origin-top-left w-[200%]" data-resume-preview="true" data-tailored-resume="true">
+                          {renderResumeTemplate(tailoredResume, selectedResume?.template || "modern")}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
             )}
           </TabsContent>
         </Tabs>

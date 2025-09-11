@@ -15,6 +15,33 @@ try {
   console.error("Error initializing Gemini AI:", error);
 }
 
+// Simple retry utility for API calls
+async function retryApiCall<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  delay: number = 2000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      // Don't retry on authentication errors
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        throw error;
+      }
+
+      // If this is the last attempt, throw the error
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+
+      console.log(`API call attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error.message);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Check authentication
@@ -63,10 +90,10 @@ export async function POST(req: NextRequest) {
 
     // Extract text from file
     let extractedText = "";
-    
+
     try {
       const buffer = await file.arrayBuffer();
-      
+
       if (file.type === "text/plain") {
         extractedText = await file.text();
       } else if (file.type === "application/pdf") {
@@ -75,19 +102,22 @@ export async function POST(req: NextRequest) {
           try {
             console.log("Processing PDF with Gemini Vision API...");
             const base64 = Buffer.from(buffer).toString('base64');
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            
-            const result = await model.generateContent([
-              "Extract all text content from this resume document. Return only the raw text content without any formatting or analysis. Include all personal information, work experience, education, skills, and other resume sections.",
-              {
-                inlineData: {
-                  data: base64,
-                  mimeType: file.type
+
+            extractedText = await retryApiCall(async () => {
+              const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+              const result = await model.generateContent([
+                "Extract all text content from this resume document. Return only the raw text content without any formatting or analysis. Include all personal information, work experience, education, skills, and other resume sections.",
+                {
+                  inlineData: {
+                    data: base64,
+                    mimeType: file.type
+                  }
                 }
-              }
-            ]);
-            
-            extractedText = result.response.text();
+              ]);
+
+              return result.response.text();
+            });
+
             console.log("Successfully extracted text from PDF using Gemini Vision API");
           } catch (geminiError) {
             console.error("Gemini Vision API error:", geminiError);
@@ -122,64 +152,68 @@ export async function POST(req: NextRequest) {
     try {
       if (extractedText && extractedText.trim().length > 50 && genAI) {
         console.log("Parsing extracted text with Gemini AI...");
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const parsePrompt = `
-          Parse the following resume text and extract structured information. Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
-          {
-            "name": "Full name of the person",
-            "email": "email@example.com",
-            "phone": "phone number",
-            "location": "city, state/country",
-            "linkedin": "linkedin URL or empty string",
-            "website": "website URL or empty string",
-            "summary": "professional summary or objective",
-            "experience": [
-              {
-                "title": "job title",
-                "company": "company name",
-                "years": "employment period (e.g., '2020 - 2022')",
-                "description": "brief role description",
-                "achievements": ["achievement 1", "achievement 2"]
-              }
-            ],
-            "skills": ["skill1", "skill2", "skill3"],
-            "education": "education details",
-            "projects": [
-              {
-                "name": "project name",
-                "description": "project description",
-                "technologies": ["tech1", "tech2"],
-                "link": "project URL or empty string"
-              }
-            ],
-            "certifications": ["certification1", "certification2"]
+
+        structuredData = await retryApiCall(async () => {
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const parsePrompt = `
+            Parse the following resume text and extract structured information. Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+            {
+              "name": "Full name of the person",
+              "email": "email@example.com",
+              "phone": "phone number",
+              "location": "city, state/country",
+              "linkedin": "linkedin URL or empty string",
+              "website": "website URL or empty string",
+              "summary": "professional summary or objective",
+              "experience": [
+                {
+                  "title": "job title",
+                  "company": "company name",
+                  "years": "employment period (e.g., '2020 - 2022')",
+                  "description": "brief role description",
+                  "achievements": ["achievement 1", "achievement 2"]
+                }
+              ],
+              "skills": ["skill1", "skill2", "skill3"],
+              "education": "education details",
+              "projects": [
+                {
+                  "name": "project name",
+                  "description": "project description",
+                  "technologies": ["tech1", "tech2"],
+                  "link": "project URL or empty string"
+                }
+              ],
+              "certifications": ["certification1", "certification2"]
+            }
+
+            Resume text to parse:
+            ${extractedText}
+          `;
+
+          const parseResult = await model.generateContent(parsePrompt);
+          const parsedText = parseResult.response.text();
+
+          // Clean up the response to extract JSON
+          let jsonText = parsedText.trim();
+
+          // Remove markdown code blocks if present
+          if (jsonText.startsWith('```json')) {
+            jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          } else if (jsonText.startsWith('```')) {
+            jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
           }
 
-          Resume text to parse:
-          ${extractedText}
-        `;
+          // Try to find JSON object in the response
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("Could not find valid JSON in AI response");
+          }
+        });
 
-        const parseResult = await model.generateContent(parsePrompt);
-        const parsedText = parseResult.response.text();
-        
-        // Clean up the response to extract JSON
-        let jsonText = parsedText.trim();
-        
-        // Remove markdown code blocks if present
-        if (jsonText.startsWith('```json')) {
-          jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (jsonText.startsWith('```')) {
-          jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-        
-        // Try to find JSON object in the response
-        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          structuredData = JSON.parse(jsonMatch[0]);
-          console.log("Successfully parsed resume data with AI");
-        } else {
-          throw new Error("Could not find valid JSON in AI response");
-        }
+        console.log("Successfully parsed resume data with AI");
       } else {
         throw new Error("Insufficient text extracted for AI parsing");
       }
@@ -239,24 +273,24 @@ export async function POST(req: NextRequest) {
         extractedText: extractedText.substring(0, 500) + "...", // Preview of extracted text
         instructions: "This resume is stored locally in your browser. Use 'Save to Account' to persist it to your account."
       }),
-      { 
-        status: 200, 
-        headers: { "Content-Type": "application/json" } 
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
       }
     );
 
   } catch (error) {
     console.error("Resume processing error:", error);
-    
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: "Error processing resume file",
         details: error instanceof Error ? error.message : "Unknown error",
         suggestion: "Please check the file format and try again. Supported formats: PDF, DOCX, DOC, TXT"
       }),
-      { 
-        status: 500, 
-        headers: { "Content-Type": "application/json" } 
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
       }
     );
   }

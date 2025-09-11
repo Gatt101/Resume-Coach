@@ -118,7 +118,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
 /** ---------- main page ---------- */
 export default function DashboardPage() {
 
-    const getResumes = async () => {
+  const getResumes = async () => {
     const resumes = await fetch('/api/user/resume/save', {
       method: 'GET',
       headers: {
@@ -151,47 +151,47 @@ export default function DashboardPage() {
     []
   )
 
-    // fetch user resumes on mount
-    useEffect(() => {
-      let mounted = true
-      async function load() {
-        try {
-          setResumesLoading(true)
-          const res = await fetch('/api/user/resume')
-          if (!res.ok) throw new Error('Failed to fetch')
-          const data = await res.json()
-          if (mounted && data?.resumes) setUserResumes(data.resumes)
-        } catch (err) {
-          console.error('Could not load resumes', err)
-        } finally {
-          if (mounted) setResumesLoading(false)
-        }
+  // fetch user resumes on mount
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      try {
+        setResumesLoading(true)
+        const res = await fetch('/api/user/resume')
+        if (!res.ok) throw new Error('Failed to fetch')
+        const data = await res.json()
+        if (mounted && data?.resumes) setUserResumes(data.resumes)
+      } catch (err) {
+        console.error('Could not load resumes', err)
+      } finally {
+        if (mounted) setResumesLoading(false)
       }
-      load()
-      return () => { mounted = false }
-    }, [])
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
 
-    // fetch guided path when resumes load
-    useEffect(() => {
-      if (!userResumes || userResumes.length === 0) return
-      let mounted = true
-      async function loadGuided() {
-        try {
-          setGuidedLoading(true)
-          const firstId = userResumes[0]._id
-          const res = await fetch(`/api/resume/guided?resumeId=${firstId}&max=8`)
-          if (!res.ok) throw new Error('failed')
-          const data = await res.json()
-          if (mounted && data?.guidedPath) setGuidedPath(data.guidedPath)
-        } catch (err) {
-          console.error('Could not load guided path', err)
-        } finally {
-          if (mounted) setGuidedLoading(false)
-        }
+  // fetch guided path when resumes load
+  useEffect(() => {
+    if (!userResumes || userResumes.length === 0) return
+    let mounted = true
+    async function loadGuided() {
+      try {
+        setGuidedLoading(true)
+        const firstId = userResumes[0]._id
+        const res = await fetch(`/api/resume/guided?resumeId=${firstId}&max=8`)
+        if (!res.ok) throw new Error('failed')
+        const data = await res.json()
+        if (mounted && data?.guidedPath) setGuidedPath(data.guidedPath)
+      } catch (err) {
+        console.error('Could not load guided path', err)
+      } finally {
+        if (mounted) setGuidedLoading(false)
       }
-      loadGuided()
-      return () => { mounted = false }
-    }, [userResumes])
+    }
+    loadGuided()
+    return () => { mounted = false }
+  }, [userResumes])
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-gradient-to-b from-background via-background to-background">
@@ -358,7 +358,7 @@ export default function DashboardPage() {
                 ) : userResumes.length === 0 ? (
                   <div className="text-sm text-muted-foreground">No resumes yet — create one to get started.</div>
                 ) : (
-                  
+
                   userResumes.slice(0, userResumes.length > 4 ? 4 : userResumes.length).map((r, idx) => (
                     <div key={r._id || idx} className="flex items-center justify-between rounded-xl border bg-white/5 p-3">
                       <div className="min-w-0">
@@ -406,9 +406,8 @@ export default function DashboardPage() {
                   <div key={i} className="flex items-center justify-between rounded-xl border bg-white/5 p-3">
                     <div className="flex items-center gap-3">
                       <span
-                        className={`inline-block size-2 rounded-full ${
-                          g.status === "critical" ? "bg-red-500" : g.status === "important" ? "bg-yellow-500" : "bg-muted-foreground"
-                        }`}
+                        className={`inline-block size-2 rounded-full ${g.status === "critical" ? "bg-red-500" : g.status === "important" ? "bg-yellow-500" : "bg-muted-foreground"
+                          }`}
                       />
                       <span className="font-medium">{g.skill}</span>
                       <div className="ml-1 flex">
