@@ -1,12 +1,11 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, BarChart3, ArrowLeft, CheckCircle, AlertCircle, Target, TrendingUp, Zap } from "lucide-react";
+import { Loader2, FileText, BarChart3, ArrowLeft, CheckCircle, AlertCircle, Target, TrendingUp, Zap, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Resume {
@@ -35,6 +34,12 @@ export default function AnalyzePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("select");
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const VISIBLE_COUNT = 4;
 
   useEffect(() => {
     fetchResumes();
@@ -159,6 +164,52 @@ export default function AnalyzePage() {
     }
   };
 
+  // Upload resume to server (uses existing upload endpoint which returns parsed JSON)
+  const uploadResume = async (file: File) => {
+    setIsUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      formData.append('title', file.name);
+      formData.append('template', 'modern');
+
+      const response = await fetch('/api/user/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errText = `Upload failed with status ${response.status}`;
+        try {
+          const errJson = await response.json();
+          errText = errJson.error || JSON.stringify(errJson);
+        } catch (e) {
+          try { errText = await response.text(); } catch (_) {}
+        }
+        throw new Error(errText);
+      }
+
+      const data = await response.json();
+      if (data && data.resume) {
+        // Set the returned parsed resume as selected and run analysis
+        const parsed: Resume = data.resume;
+        setSelectedResume(parsed as Resume);
+        setActiveTab('results');
+        // run analyze (server expects resumeId for saved ones; for local parsed data use client analysis)
+        // We'll trigger client analysis by passing the parsed resume object
+        await analyzeResume(parsed as Resume);
+      } else {
+        throw new Error('Upload succeeded but no resume data returned');
+      }
+    } catch (error) {
+      console.error('Error uploading resume:', error);
+      setError(error instanceof Error ? error.message : 'Failed to upload resume.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600";
     if (score >= 60) return "text-yellow-600";
@@ -229,140 +280,285 @@ export default function AnalyzePage() {
                   <div className="flex justify-center py-8">
                     <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                   </div>
-                ) : resumes.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-4">No resumes found</p>
-                    <Button 
-                      onClick={() => router.push('/dashboard/builder')}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Create Your First Resume
-                    </Button>
-                  </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {resumes.map((resume) => {
-                      const resumeId = resume._id || resume.id;
-                      const selectedId = selectedResume?._id || selectedResume?.id;
-                      const isSelected = resumeId === selectedId;
-                      
-                      return (
-                        <div
-                          key={resumeId}
-                          className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                            isSelected
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          onClick={() => !isAnalyzing && handleResumeSelect(resume)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-gray-900">{resume.title}</h3>
-                              {resume.isLocal && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
-                                  Local Resume
-                                </span>
-                              )}
-                              <p className="text-sm text-gray-600 mt-1">
-                                Template: {resume.template || 'Modern'}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-2">
-                                Updated: {new Date(resume.updatedAt ?? Date.now()).toLocaleDateString()}
-                              </p>
-                            </div>
-                            {isSelected && (
-                              isAnalyzing ? (
-                                <Loader2 className="w-5 h-5 text-green-600 animate-spin" />
-                              ) : (
-                                <CheckCircle className="w-5 h-5 text-green-600" />
-                              )
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Left: Choose a resume (shows limited list with toolbar) */}
+                    <div className="flex-1">
+                      {resumes.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600 mb-4">No resumes found</p>
+                          <Button 
+                            onClick={() => router.push('/dashboard/builder')}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Create Your First Resume
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-medium text-gray-800">Your Resumes</h3>
+                            {resumes.length > VISIBLE_COUNT && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Showing {showAll ? resumes.length : VISIBLE_COUNT} of {resumes.length}</span>
+                                <Button size="sm" variant="ghost" onClick={() => setShowAll(s => !s)}>
+                                  {showAll ? 'Show less' : 'Show more'}
+                                </Button>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  )}
 
-                {/* Analyze Selected Button */}
-                <div className="mt-4 flex justify-center">
-                  <Button
-                    onClick={async () => {
-                      if (!selectedResume) return;
-                      setIsAnalyzing(true);
-                      setError(null);
-                      try {
-                        await analyzeResume(selectedResume);
-                      } finally {
-                        setIsAnalyzing(false);
-                      }
-                    }}
-                    disabled={!selectedResume || isAnalyzing}
-                    className="w-64 bg-green-600 hover:bg-green-700"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <BarChart3 className="mr-2 w-5 h-5" />
-                        Analyze Selected
-                      </>
-                    )}
-                  </Button>
-                </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {(showAll ? resumes : resumes.slice(0, VISIBLE_COUNT)).map((resume) => {
+                              const resumeId = resume._id || resume.id;
+                              const selectedId = selectedResume?._id || selectedResume?.id;
+                              const isSelected = resumeId === selectedId;
+                              return (
+                                <div
+                                  key={resumeId}
+                                  className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                                    isSelected
+                                      ? 'border-green-500 bg-green-50'
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                  onClick={() => !isAnalyzing && handleResumeSelect(resume)}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <h3 className="font-semibold text-gray-900">{resume.title}</h3>
+                                      {resume.isLocal && (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                                          Local Resume
+                                        </span>
+                                      )}
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        Template: {resume.template || 'Modern'}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-2">
+                                        Updated: {new Date(resume.updatedAt ?? Date.now()).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    {isSelected && (
+                                      isAnalyzing ? (
+                                        <Loader2 className="w-5 h-5 text-green-600 animate-spin" />
+                                      ) : (
+                                        <CheckCircle className="w-5 h-5 text-green-600" />
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-4 flex justify-center">
+                            <Button
+                              onClick={async () => {
+                                if (!selectedResume) return;
+                                setIsAnalyzing(true);
+                                setError(null);
+                                try {
+                                  await analyzeResume(selectedResume);
+                                } finally {
+                                  setIsAnalyzing(false);
+                                }
+                              }}
+                              disabled={!selectedResume || isAnalyzing}
+                              className="w-64 bg-green-600 hover:bg-green-700"
+                            >
+                              {isAnalyzing ? (
+                                <>
+                                  <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                                  Analyzing...
+                                </>
+                              ) : (
+                                <>
+                                  <BarChart3 className="mr-2 w-5 h-5" />
+                                  Analyze Selected
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Right: Upload Resume Card */}
+                    <div className="w-full lg:w-1/2">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Upload className="w-5 h-5" />
+                            Upload Resume (OCR)
+                          </CardTitle>
+                          <p className="text-gray-600">Upload a PDF/DOCX to run OCR and parsing, then analyze it.</p>
+                        </CardHeader>
+                        <CardContent>
+                          <div
+                            className={`m-4 text-center py-8 border-dashed border-2 ${
+                              dragOver ? "border-green-500 bg-green-50" : "border-gray-200"
+                            } rounded-lg`}
+                            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+                            onDrop={async (e) => {
+                              e.preventDefault();
+                              setDragOver(false);
+                              const dropped = e.dataTransfer.files?.[0];
+                              if (!dropped) return;
+                              setFile(dropped);
+                              await uploadResume(dropped);
+                            }}
+                          >
+                            <p className="text-xl text-gray-700">{file ? file.name : "Drag & drop your resume here"}</p>
+                            <p className="text-gray-500 mt-2">Or click to select a file (PDF, DOCX)</p>
+                            <div className="mt-4">
+                              <label className="inline-block">
+                                <input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.txt"
+                                  className="hidden"
+                                  onChange={async (ev) => {
+                                    const f = ev.target.files?.[0];
+                                    if (!f) return;
+                                    setFile(f);
+                                    await uploadResume(f);
+                                  }}
+                                />
+                                <Button className="bg-green-600 hover:bg-green-700" disabled={isUploading}
+                                  onClick={() => {
+                                    if (fileInputRef.current) {
+                                      fileInputRef.current.click();
+                                    }
+                                  }}>
+                                  {isUploading ? (
+                                    <>
+                                      <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                                      Analyzing
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="mr-2 w-5 h-5" />
+                                      Select File
+                                    </>
+                                  )}
+                                </Button>
+                              </label>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6">
             {analysisResult && (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <p className="text-sm font-medium text-gray-600">ATS Score</p>
-                    <p className={`text-4xl font-bold ${getScoreColor(analysisResult.atsScore)}`}>
-                      {analysisResult.atsScore}/100
-                    </p>
-                    <Progress value={analysisResult.atsScore} className="mt-4" />
-                  </CardContent>
-                </Card>
+              <div className="max-w-6xl mx-auto">
+                <div className="mb-6 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-white">Analysis Results</h2>
+                  <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => setActiveTab('select')}>Back to selection</Button>
+                  </div>
+                </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Areas to Improve</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {analysisResult.improvementAreas.length === 0 ? (
-                      <p className="text-sm text-gray-600">No major issues detected. Your resume looks ATS-friendly.</p>
-                    ) : (
-                      <ul className="list-disc pl-5 space-y-2">
-                        {analysisResult.improvementAreas.map((area, i) => (
-                          <li key={i} className="text-sm text-gray-700">{area}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <div className="lg:col-span-2 space-y-6">
+                    {/* Big Score Card */}
+                    <Card className="bg-gradient-to-r from-gray-800 via-gray-900 to-black border-0">
+                      <CardContent className="p-8 text-center">
+                        <p className="text-sm text-gray-400 uppercase">ATS Score</p>
+                        <p className={`text-6xl font-extrabold mt-2 ${getScoreColor(analysisResult.atsScore)}`}>{analysisResult.atsScore}<span className="text-2xl ml-2 text-gray-400">/100</span></p>
+                        <div className="mt-6">
+                          <Progress value={analysisResult.atsScore} className="h-3 rounded-full" />
+                        </div>
+                        <p className="text-sm text-gray-400 mt-3">This score is a quick estimate of how well your resume performs against typical ATS checks.</p>
+                      </CardContent>
+                    </Card>
 
-                {analysisResult.recommendations.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Quick Recommendations</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {analysisResult.recommendations.map((r, idx) => (
-                          <li key={idx} className="text-sm text-gray-700">{r}</li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                )}
+                    {/* Areas to Improve */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Areas to Improve</CardTitle>
+                        <p className="text-sm text-gray-500">Top issues affecting your ATS score</p>
+                      </CardHeader>
+                      <CardContent>
+                        {analysisResult.improvementAreas.length === 0 ? (
+                          <p className="text-sm text-gray-50">No major issues detected. Your resume looks ATS-friendly.</p>
+                        ) : (
+                          <ul className="list-disc pl-5 space-y-2">
+                            {analysisResult.improvementAreas.map((area, i) => (
+                              <li key={i} className="text-sm text-gray-50">{area}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Recommendations */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Quick Recommendations</CardTitle>
+                        <p className="text-sm text-gray-500">Actionable tips to boost your score</p>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-3">
+                          {analysisResult.recommendations.length === 0 ? (
+                            <li className="text-sm text-gray-50">No recommendations available.</li>
+                          ) : (
+                            analysisResult.recommendations.map((r, idx) => (
+                              <li key={idx} className="text-sm text-gray-50">{r}</li>
+                            ))
+                          )}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* CTA column */}
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Improve my ATS</CardTitle>
+                        <p className="text-sm text-gray-500">Pick how you'd like to improve your resume</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="font-medium">Rebuild your resume</p>
+                          <p className="text-sm text-gray-500">Start from scratch in the visual builder to create a clean, ATS-friendly resume.</p>
+                          <div className="flex gap-2 mt-2">
+                            <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => router.push('/dashboard/builder')}>Rebuild Resume</Button>
+                            <Button variant="outline" className="flex-1" onClick={() => router.push('/dashboard/builder')}>Open Builder</Button>
+                          </div>
+                        </div>
+
+                        <hr />
+
+                        <div className="space-y-2">
+                          <p className="font-medium">Tailor for a job</p>
+                          <p className="text-sm text-gray-500">Optimize this resume for a specific job posting with targeted keyword alignment.</p>
+                          <div className="flex gap-2 mt-2">
+                            <Button className="flex-1 bg-purple-600 hover:bg-purple-700" onClick={() => router.push('/dashboard/tailor')}>Tailor Resume</Button>
+                            <Button variant="outline" className="flex-1" onClick={() => router.push('/dashboard/tailor')}>Open Tailor</Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Need help?</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-gray-600">If you want a hands-on walkthrough, use the builder to reconstruct your resume or the tailor tool to match a job posting.</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
               </div>
             )}
           </TabsContent>

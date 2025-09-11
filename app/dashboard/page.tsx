@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, usePathname } from "next/navigation"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useUser, UserButton } from "@clerk/nextjs"
 import {
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { GetUserResumes } from "@/lib/actions/resume.action"
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -113,12 +114,31 @@ function StatChip({ label, value }: { label: string; value: string }) {
   )
 }
 
+
 /** ---------- main page ---------- */
 export default function DashboardPage() {
+
+    const getResumes = async () => {
+    const resumes = await fetch('/api/user/resume/save', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+
+    })
+    return resumes.json()
+  }
+
+
   const router = useRouter()
   const pathname = usePathname()
   const { user } = useUser()
   const [railOpen, setRailOpen] = useState(false)
+  const [userResumes, setUserResumes] = useState<any[]>([])
+  const [resumesLoading, setResumesLoading] = useState(false)
+  const myResumes = getResumes()
+
+
 
   const progress = useMemo(
     () => ({
@@ -128,6 +148,26 @@ export default function DashboardPage() {
     }),
     []
   )
+
+    // fetch user resumes on mount
+    useEffect(() => {
+      let mounted = true
+      async function load() {
+        try {
+          setResumesLoading(true)
+          const res = await fetch('/api/user/resume')
+          if (!res.ok) throw new Error('Failed to fetch')
+          const data = await res.json()
+          if (mounted && data?.resumes) setUserResumes(data.resumes)
+        } catch (err) {
+          console.error('Could not load resumes', err)
+        } finally {
+          if (mounted) setResumesLoading(false)
+        }
+      }
+      load()
+      return () => { mounted = false }
+    }, [])
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-gradient-to-b from-background via-background to-background">
@@ -141,13 +181,14 @@ export default function DashboardPage() {
       <aside
         onMouseEnter={() => setRailOpen(true)}
         onMouseLeave={() => setRailOpen(false)}
-        className={`group sticky left-0 top-0 z-20 flex h-dvh flex-col border-r bg-black/20 backdrop-blur supports-[backdrop-filter]:bg-black/10 transition-[width] duration-300 ${railOpen ? "w-60" : "w-16"}`}
+        style={{ willChange: 'width' }}
+        className={`group sticky left-0 top-0 z-20 flex h-dvh flex-col border-r bg-black/20 backdrop-blur supports-[backdrop-filter]:bg-black/10 transition-[width] duration-300 ease-in-out ${railOpen ? "w-60" : "w-16"}`}
       >
         <div className="flex items-center gap-2 border-b px-3 py-3">
           <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 text-primary-foreground grid place-items-center">
             <Target className="size-4" />
           </div>
-          <span className={`font-semibold text-sm text-foreground transition-opacity ${railOpen ? "opacity-100" : "opacity-0"}`}>
+          <span className={`font-semibold text-sm text-foreground transition-all duration-300 ease-in-out transform ${railOpen ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2"}`}>
             AI Resume Coach
           </span>
         </div>
@@ -160,7 +201,7 @@ export default function DashboardPage() {
                 <li key={item.label}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={`w-full justify-start ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"} ${railOpen ? "px-3" : "px-2"} `}
+                    className={`w-full justify-start transition-all duration-200 ease-in-out ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"} ${railOpen ? "px-3" : "px-2"} `}
                     size={railOpen ? "default" : "icon"}
                     onClick={() => router.push(item.href)}
                   >
@@ -245,7 +286,8 @@ export default function DashboardPage() {
           {/* QUICK ACTIONS */}
           <section className="mt-8">
             <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* make cards larger and force equal heights */}
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 items-stretch">
               {quickActions.map((qa, i) => (
                 <motion.div
                   key={qa.title}
@@ -255,16 +297,17 @@ export default function DashboardPage() {
                 >
                   <Card
                     onClick={() => router.push(qa.href)}
-                    className="group cursor-pointer overflow-hidden border bg-card/70 backdrop-blur transition-all hover:shadow-lg"
+                    className="group cursor-pointer overflow-hidden border bg-card/70 backdrop-blur transition-all hover:shadow-lg h-36"
                   >
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="grid size-11 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10 transition group-hover:scale-105">
-                          <qa.icon className="size-5 text-primary" />
+                    {/* ensure content fills the card and is centered */}
+                    <CardContent className="p-6 h-full flex items-center">
+                      <div className="flex items-center gap-6 w-full">
+                        <div className="grid size-14 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10 transition transform group-hover:scale-105">
+                          <qa.icon className="size-6 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold leading-tight">{qa.title}</h3>
-                          <p className="mt-1 text-xs text-muted-foreground">{qa.description}</p>
+                          <h3 className="text-lg font-semibold leading-tight">{qa.title}</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">{qa.description}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -285,28 +328,44 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {recentResumes.map((r, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-xl border bg-white/5 p-3">
-                    <div className="min-w-0">
-                      <h4 className="truncate font-medium">{r.name}</h4>
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span>JD Match: <span className="font-semibold text-foreground">{r.jdMatch}%</span></span>
-                        <span>Updated: {r.lastUpdated}</span>
+                {/* show loading, no resumes, or limited list */}
+                {resumesLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading resumes...</div>
+                ) : userResumes.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No resumes yet — create one to get started.</div>
+                ) : (
+                  
+                  userResumes.slice(0, userResumes.length > 4 ? 4 : userResumes.length).map((r, idx) => (
+                    <div key={r._id || idx} className="flex items-center justify-between rounded-xl border bg-white/5 p-3">
+                      <div className="min-w-0">
+                        <h4 className="truncate font-medium">{r.title || r.data?.name || `Resume ${idx + 1}`}</h4>
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          {typeof r.metadata?.generatedAt === 'string' && <span>Created: {new Date(r.createdAt || r.metadata.generatedAt).toLocaleDateString()}</span>}
+                          {r.metadata?.targetRole && <span>Target: {r.metadata.targetRole}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={r.status === "optimized" ? "default" : "secondary"} className="capitalize">
+                          {r.metadata?.status || (r.metadata?.generatedAt ? 'generated' : 'saved')}
+                        </Badge>
+                        <Button size="sm" variant="outline" onClick={() => router.push(`/dashboard/resumes/${r._id || ''}`)}>
+                          View
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={r.status === "optimized" ? "default" : "secondary"} className="capitalize">
-                        {r.status}
-                      </Badge>
-                      <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/tailor")}>
-                        View
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/resumes")}>
-                  View All Resumes
-                </Button>
+                  ))
+                )}
+
+                {/* if more than 4 resumes, show view more button */}
+                {userResumes.length > 4 ? (
+                  <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/resumes")}>
+                    View more
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/resumes")}>
+                    View All Resumes
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
