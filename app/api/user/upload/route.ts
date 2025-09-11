@@ -1,13 +1,4 @@
 import { NextRequest } from "next/server";
-<<<<<<< HEAD
-
-
-export async function POST(req:NextRequest)
-{
-    const formData=await req.formData();
-    console.log(formData.get("file"));
-    return new Response(JSON.stringify({message:"Upload endpoint placeholder"}),{status:200});
-=======
 import { auth } from "@clerk/nextjs/server";
 import Resume from "@/models/resume";
 import { connect } from "@/lib/mongoose";
@@ -290,5 +281,4 @@ export async function POST(req: NextRequest) {
       }
     );
   }
->>>>>>> my-feature-branch
 }

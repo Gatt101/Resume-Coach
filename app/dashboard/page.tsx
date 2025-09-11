@@ -112,9 +112,8 @@ export default function DashboardPage() {
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarCollapsed ? "w-16" : "w-64"
-        } bg-sidebar-background border-r border-sidebar-border transition-all duration-300 flex flex-col`}
+        className={`${sidebarCollapsed ? "w-16" : "w-64"
+          } bg-sidebar-background border-r border-sidebar-border transition-all duration-300 flex flex-col`}
       >
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
@@ -133,11 +132,10 @@ export default function DashboardPage() {
                 <li key={item.label}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={`w-full justify-start transition-colors ${
-                      isActive 
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    } ${sidebarCollapsed ? "px-2" : ""}`}
+                    className={`w-full justify-start transition-colors ${isActive
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      } ${sidebarCollapsed ? "px-2" : ""}`}
                     size={sidebarCollapsed ? "icon" : "default"}
                     onClick={() => router.push(item.href)}
                   >
@@ -153,11 +151,11 @@ export default function DashboardPage() {
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3">
             {!sidebarCollapsed && (
-            <div className=" flex items-center gap-3">
-               <UserButton />
-               <p className="text-sm text-sidebar-foreground">{user?.firstName}</p>
-            </div>
-            
+              <div className=" flex items-center gap-3">
+                <UserButton />
+                <p className="text-sm text-sidebar-foreground">{user?.firstName}</p>
+              </div>
+
             )}
           </div>
         </div>
@@ -194,7 +192,7 @@ export default function DashboardPage() {
                   transition={{ duration: 0.3, delay: i * 0.1 }}
                 >
                   <Card className="cursor-pointer transition-all hover:shadow-md hover:border-secondary/20"
-                            >
+                  >
                     <CardContent className="p-6" onClick={() => router.push(action.href)}>
                       <div className="flex items-start gap-4">
                         <div
@@ -333,8 +331,8 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => router.push('/dashboard/resumes')}
                   >
@@ -358,13 +356,12 @@ export default function DashboardPage() {
                     <div key={i} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`size-3 rounded-full ${
-                            gap.status === "critical"
-                              ? "bg-destructive"
-                              : gap.status === "important"
-                                ? "bg-yellow-500"
-                                : "bg-muted-foreground"
-                          }`}
+                          className={`size-3 rounded-full ${gap.status === "critical"
+                            ? "bg-destructive"
+                            : gap.status === "important"
+                              ? "bg-yellow-500"
+                              : "bg-muted-foreground"
+                            }`}
                         />
                         <span className="font-medium">{gap.skill}</span>
                         <div className="flex">
@@ -380,8 +377,8 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   ))}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => router.push('/dashboard/gaps')}
                   >
@@ -404,13 +401,12 @@ export default function DashboardPage() {
                   {learningModules.slice(0, 4).map((module, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div
-                        className={`size-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                          module.completed
-                            ? "bg-secondary text-secondary-foreground"
-                            : module.current
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                        }`}
+                        className={`size-8 rounded-full flex items-center justify-center text-xs font-bold ${module.completed
+                          ? "bg-secondary text-secondary-foreground"
+                          : module.current
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                          }`}
                       >
                         {module.completed ? <CheckCircle2 className="size-4" /> : module.week}
                       </div>
@@ -421,8 +417,8 @@ export default function DashboardPage() {
                       {module.current && <Badge>Current</Badge>}
                     </div>
                   ))}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => router.push('/dashboard/learning')}
                   >
@@ -459,8 +455,8 @@ export default function DashboardPage() {
                     </div>
                     <Progress value={85} className="h-2" />
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => router.push('/dashboard/analytics')}
                   >
