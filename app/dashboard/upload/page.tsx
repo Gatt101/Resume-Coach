@@ -50,6 +50,8 @@ export default function UploadPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [localResumeId, setLocalResumeId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -83,7 +85,13 @@ export default function UploadPage() {
       if (data.success) {
         setExtractedText(data.extractedText || "");
         setResumeData(data.resume.data);
-        setSuccess("Resume processed successfully! You can now edit the extracted information.");
+        
+        // Store the complete resume data locally
+        const resumeWithId = data.resume;
+        setLocalResumeId(resumeWithId.id);
+        localStorage.setItem(`resume_${resumeWithId.id}`, JSON.stringify(resumeWithId));
+        
+        setSuccess(data.message || "Resume processed successfully! You can now edit the information and save to your account.");
       } else {
         throw new Error(data.error || "Processing failed");
       }
@@ -121,13 +129,31 @@ export default function UploadPage() {
     }
   };
 
+  // Update localStorage whenever resumeData changes
+  const updateLocalStorage = () => {
+    if (localResumeId && resumeData) {
+      const localResumeData = localStorage.getItem(`resume_${localResumeId}`);
+      if (localResumeData) {
+        const resumeToUpdate = JSON.parse(localResumeData);
+        resumeToUpdate.data = resumeData;
+        resumeToUpdate.template = template;
+        localStorage.setItem(`resume_${localResumeId}`, JSON.stringify(resumeToUpdate));
+      }
+    }
+  };
+
   const updateResumeData = (field: string, value: any) => {
     if (!resumeData) return;
     
-    setResumeData(prev => ({
-      ...prev!,
-      [field]: value
-    }));
+    setResumeData(prev => {
+      const updated = {
+        ...prev!,
+        [field]: value
+      };
+      // Update localStorage with the new data
+      setTimeout(updateLocalStorage, 0);
+      return updated;
+    });
   };
 
   const addExperience = () => {
@@ -141,10 +167,14 @@ export default function UploadPage() {
       achievements: [""]
     };
     
-    setResumeData(prev => ({
-      ...prev!,
-      experience: [...prev!.experience, newExperience]
-    }));
+    setResumeData(prev => {
+      const updated = {
+        ...prev!,
+        experience: [...prev!.experience, newExperience]
+      };
+      setTimeout(updateLocalStorage, 0);
+      return updated;
+    });
   };
 
   const updateExperience = (index: number, field: string, value: any) => {
@@ -156,10 +186,14 @@ export default function UploadPage() {
       [field]: value
     };
     
-    setResumeData(prev => ({
-      ...prev!,
-      experience: updatedExperience
-    }));
+    setResumeData(prev => {
+      const updated = {
+        ...prev!,
+        experience: updatedExperience
+      };
+      setTimeout(updateLocalStorage, 0);
+      return updated;
+    });
   };
 
   const addProject = () => {
@@ -172,10 +206,14 @@ export default function UploadPage() {
       link: ""
     };
     
-    setResumeData(prev => ({
-      ...prev!,
-      projects: [...prev!.projects, newProject]
-    }));
+    setResumeData(prev => {
+      const updated = {
+        ...prev!,
+        projects: [...prev!.projects, newProject]
+      };
+      setTimeout(updateLocalStorage, 0);
+      return updated;
+    });
   };
 
   const renderResumeTemplate = () => {
@@ -196,28 +234,50 @@ export default function UploadPage() {
   };
 
   const saveResume = async () => {
-    if (!resumeData) return;
+    if (!resumeData || !localResumeId) return;
+
+    setIsSaving(true);
+    setError(null);
 
     try {
-      const response = await fetch("/api/user/resume", {
+      // Get the current resume data from localStorage
+      const localResumeData = localStorage.getItem(`resume_${localResumeId}`);
+      if (!localResumeData) {
+        throw new Error("Local resume data not found");
+      }
+
+      const resumeToSave = JSON.parse(localResumeData);
+      // Update with current form data
+      resumeToSave.data = resumeData;
+      resumeToSave.template = template;
+
+      const response = await fetch("/api/user/resume/save", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          resume: resumeData,
-          template: template
+          resumeData: resumeToSave
         }),
       });
 
       if (response.ok) {
-        setSuccess("Resume saved successfully!");
+        const saveResponse = await response.json();
+        setSuccess("Resume saved to your account successfully!");
         setIsEditing(false);
+        
+        // Optionally remove from localStorage after successful save
+        localStorage.removeItem(`resume_${localResumeId}`);
+        setLocalResumeId(null);
       } else {
-        throw new Error("Failed to save resume");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save resume");
       }
     } catch (error) {
-      setError("Failed to save resume. Please try again.");
+      console.error("Save error:", error);
+      setError(error instanceof Error ? error.message : "Failed to save resume. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -238,6 +298,16 @@ export default function UploadPage() {
         {success && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-green-600">{success}</p>
+          </div>
+        )}
+        
+        {/* Local Storage Info */}
+        {localResumeId && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-600">
+              ℹ️ Your resume is currently stored locally in your browser. 
+              Click "Save to Account" to permanently save it to your account.
+            </p>
           </div>
         )}
 
@@ -311,9 +381,18 @@ export default function UploadPage() {
                       {isEditing ? "View Mode" : "Edit Mode"}
                     </Button>
                     {isEditing && (
-                      <Button size="sm" onClick={saveResume} className="bg-purple-600 hover:bg-purple-700">
-                        <Save className="w-4 h-4 mr-1" />
-                        Save
+                      <Button 
+                        size="sm" 
+                        onClick={saveResume} 
+                        disabled={isSaving || !localResumeId}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isSaving ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-1" />
+                        )}
+                        {isSaving ? "Saving..." : "Save to Account"}
                       </Button>
                     )}
                   </div>
@@ -493,7 +572,11 @@ export default function UploadPage() {
                   <div className="flex gap-2">
                     <select
                       value={template}
-                      onChange={(e) => setTemplate(e.target.value)}
+                      onChange={(e) => {
+                        setTemplate(e.target.value);
+                        // Update localStorage when template changes
+                        setTimeout(updateLocalStorage, 0);
+                      }}
                       className="px-3 py-1 border rounded text-sm"
                     >
                       <option value="modern">Modern</option>

@@ -1,16 +1,5 @@
 import { NextRequest } from "next/server";
-<<<<<<< HEAD
-
-
-export async function POST(req:NextRequest)
-{
-    const formData=await req.formData();
-    console.log(formData.get("file"));
-    return new Response(JSON.stringify({message:"Upload endpoint placeholder"}),{status:200});
-=======
 import { auth } from "@clerk/nextjs/server";
-import Resume from "@/models/resume";
-import { connect } from "@/lib/mongoose";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
 
@@ -213,11 +202,10 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Connect to database and save resume
-    await connect();
-
-    // Create resume data step by step to avoid validation issues
-    const resumeData = {
+    // Return the processed resume data without saving to database
+    // The client will store this locally in browser storage
+    const processedResume = {
+      id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate a local ID
       userId,
       title: title || file.name || "Uploaded Resume",
       template,
@@ -227,33 +215,29 @@ export async function POST(req: NextRequest) {
         targetRole: "General",
         experienceLevel: "Mid-level",
         colorScheme: "blue",
-        layout: "standard"
-      }
+        layout: "standard",
+        uploadedFile: {
+          originalName: file.name,
+          size: file.size,
+          type: file.type,
+          extractedText: extractedText.substring(0, 1000) // Store first 1000 chars for reference
+        }
+      },
+      isLocal: true // Flag to indicate this is stored locally, not in database
     };
 
-    // Add uploadedFile only if we have valid file data
-    if (file && file.name && file.size && file.type) {
-      (resumeData.metadata as any).uploadedFile = {
-        originalName: file.name,
-        size: file.size,
-        type: file.type,
-        extractedText: extractedText.substring(0, 1000)
-      };
-    }
-
-    console.log("Extracted text length:", extractedText.length);
-    console.log("Extracted text preview:", extractedText.substring(0, 200) + "...");
-    console.log("Creating resume with data:", JSON.stringify(resumeData, null, 2));
-
-    const newResume = new Resume(resumeData);
-    const savedResume = await newResume.save();
+    console.log("Processed resume data (will be stored locally):", {
+      ...processedResume,
+      data: { ...processedResume.data, summary: processedResume.data.summary?.substring(0, 100) + "..." }
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Resume uploaded and processed successfully",
-        resume: savedResume,
-        extractedText: extractedText.substring(0, 500) + "..." // Preview of extracted text
+        message: "Resume processed successfully - stored locally in browser",
+        resume: processedResume,
+        extractedText: extractedText.substring(0, 500) + "...", // Preview of extracted text
+        instructions: "This resume is stored locally in your browser. Use 'Save to Account' to persist it to your account."
       }),
       { 
         status: 200, 
@@ -262,27 +246,13 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (error) {
-    console.error("Upload error:", error);
-    
-    // Handle specific MongoDB validation errors
-    if (error instanceof Error && error.message.includes('validation failed')) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Data validation failed",
-          details: error.message,
-          suggestion: "Please check the file format and try again"
-        }),
-        { 
-          status: 400, 
-          headers: { "Content-Type": "application/json" } 
-        }
-      );
-    }
+    console.error("Resume processing error:", error);
     
     return new Response(
       JSON.stringify({ 
-        error: "Internal server error during upload",
-        details: error instanceof Error ? error.message : "Unknown error"
+        error: "Error processing resume file",
+        details: error instanceof Error ? error.message : "Unknown error",
+        suggestion: "Please check the file format and try again. Supported formats: PDF, DOCX, DOC, TXT"
       }),
       { 
         status: 500, 
@@ -290,5 +260,4 @@ export async function POST(req: NextRequest) {
       }
     );
   }
->>>>>>> my-feature-branch
 }

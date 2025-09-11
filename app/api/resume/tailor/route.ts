@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { GetUserResumes } from '@/lib/actions/resume.action'
 import { inngest } from '@/inngest/client'
-<<<<<<< HEAD
-=======
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // Initialize Gemini AI with error handling
@@ -15,7 +13,6 @@ try {
 } catch (error) {
   console.error("Error initializing Gemini AI:", error);
 }
->>>>>>> my-feature-branch
 
 export async function POST(req: NextRequest) {
     try {
@@ -46,23 +43,6 @@ export async function POST(req: NextRequest) {
         let tailoredResume;
 
         try {
-<<<<<<< HEAD
-            // Send AI tailoring request to Inngest
-            const aiTailoringResponse = await inngest.send({
-                name: "tailor-resume",
-                data: {
-                    resumeData: selectedResume.data,
-                    jobDescription: jobDescription,
-                    userId: userId,
-                    resumeId: resumeId
-                }
-            });
-
-            // For immediate response, use enhanced fallback while AI processes
-            tailoredResume = enhancedFallbackTailoring(selectedResume.data, jobDescription);
-            
-            // Note: In production, you might implement webhooks to get AI results
-=======
             // Use Gemini AI for intelligent tailoring
             if (genAI) {
                 console.log("Using Gemini AI for resume tailoring...");
@@ -75,7 +55,6 @@ export async function POST(req: NextRequest) {
             // Note: Inngest background processing disabled due to configuration issues
             // TODO: Re-enable once Inngest is properly configured
             console.log("AI tailoring completed successfully");
->>>>>>> my-feature-branch
             
         } catch (aiError) {
             console.error('AI tailoring failed, using enhanced fallback:', aiError);
@@ -85,15 +64,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ 
             success: true,
             resume: tailoredResume,
-<<<<<<< HEAD
-            aiProcessing: true, // Indicates AI is processing in background
-            message: 'Resume tailored successfully! Enhanced AI optimization is processing in the background.'
-=======
             aiProcessing: true,
             optimizationScore: tailoredResume.metadata?.optimizationScore || 0,
             keywordsAdded: tailoredResume.metadata?.keywordsAdded || [],
             message: 'Resume successfully tailored with AI-powered keyword optimization and ATS enhancement!'
->>>>>>> my-feature-branch
         })
         
     } catch (error) {
@@ -104,29 +78,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-<<<<<<< HEAD
-function enhancedFallbackTailoring(resumeData: any, jobDescription: string) {
-    const jobKeywords = extractKeywords(jobDescription)
-    
-    // Enhance summary with job keywords
-    const enhancedSummary = resumeData.summary ? 
-        `${resumeData.summary} Experienced in ${jobKeywords.slice(0, 3).join(', ')}.` :
-        `Professional with expertise in ${jobKeywords.slice(0, 5).join(', ')}.`
-    
-    // Prioritize skills based on job description
-    const prioritizedSkills = resumeData.skills ? 
-        [...resumeData.skills].sort((a, b) => {
-            const aMatch = jobKeywords.some(keyword => 
-                a.toLowerCase().includes(keyword.toLowerCase()) || 
-                keyword.toLowerCase().includes(a.toLowerCase())
-            )
-            const bMatch = jobKeywords.some(keyword => 
-                b.toLowerCase().includes(keyword.toLowerCase()) || 
-                keyword.toLowerCase().includes(b.toLowerCase())
-            )
-            return bMatch ? 1 : aMatch ? -1 : 0
-        }) : []
-=======
 async function aiTailorResume(resumeData: any, jobDescription: string) {
     if (!genAI) {
         throw new Error("Gemini AI not available");
@@ -310,33 +261,10 @@ function enhancedFallbackTailoring(resumeData: any, jobDescription: string) {
             achievements: enhancedAchievements
         };
     }) : [];
->>>>>>> my-feature-branch
 
     return {
         ...resumeData,
         summary: enhancedSummary,
-<<<<<<< HEAD
-        skills: prioritizedSkills,
-        metadata: {
-            ...resumeData.metadata,
-            tailoredAt: new Date().toISOString(),
-            tailoredFor: jobDescription.substring(0, 100) + '...',
-            method: 'enhanced-fallback'
-        }
-    }
-}
-
-function extractKeywords(jobDescription: string): string[] {
-    const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'a', 'an', 'this', 'that', 'these', 'those']
-    
-    return jobDescription
-        .toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
-        .split(/\s+/)
-        .filter(word => word.length > 2 && !commonWords.includes(word))
-        .filter((word, index, arr) => arr.indexOf(word) === index) // Remove duplicates
-        .slice(0, 20) // Top 20 keywords
-=======
         skills: enhancedSkills,
         experience: enhancedExperience,
         metadata: {
@@ -422,5 +350,4 @@ function calculateOptimizationScore(resumeData: any, jobKeywords: string[]): num
     );
     
     return Math.round((matchedKeywords.length / jobKeywords.length) * 100);
->>>>>>> my-feature-branch
 }

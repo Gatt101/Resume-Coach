@@ -1,8 +1,6 @@
 
 import { Schema, model, models } from "mongoose";
 
-<<<<<<< HEAD
-=======
 // Define the uploaded file schema separately
 const uploadedFileSchema = new Schema({
     originalName: { type: String, required: false },
@@ -11,7 +9,6 @@ const uploadedFileSchema = new Schema({
     extractedText: { type: String, required: false }
 }, { _id: false });
 
->>>>>>> my-feature-branch
 const resumeSchema = new Schema(
     {
         userId: { type: String, required: true }, // Store Clerk user ID as string
@@ -47,12 +44,8 @@ const resumeSchema = new Schema(
             targetRole: String,
             experienceLevel: String,
             colorScheme: String,
-<<<<<<< HEAD
-            layout: String
-=======
             layout: String,
             uploadedFile: { type: uploadedFileSchema, required: false }
->>>>>>> my-feature-branch
         }
     },
     { timestamps: true }

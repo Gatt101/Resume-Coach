@@ -39,10 +39,7 @@ export default function TailorPage()
   const [dragOver, setDragOver] = useState(false);
   const [tempLocalResume, setTempLocalResume] = useState<any | null>(null);
   const [tempLocalFile, setTempLocalFile] = useState<File | null>(null);
-<<<<<<< HEAD
-=======
   const [uploadedResumeOptions, setUploadedResumeOptions] = useState<any[]>([]);
->>>>>>> my-feature-branch
 
   // Handle file selection from input
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,8 +134,6 @@ export default function TailorPage()
       }
 
       setSuccess("Resume uploaded successfully!");
-<<<<<<< HEAD
-=======
       
       // Create multiple template options from the uploaded resume
       const extractedData = data.resume.data;
@@ -192,7 +187,6 @@ export default function TailorPage()
       
       setUploadedResumeOptions(uploadedOptions);
       
->>>>>>> my-feature-branch
       // Prevent duplicates: only add server resume once
       setResumes((prev) => {
         if (prev.some(r => String(r._id) === String(data.resume._id))) return prev;
@@ -254,16 +248,6 @@ export default function TailorPage()
   };
 
   const handleResumeSelect = (resume: Resume) => {
-<<<<<<< HEAD
-    setSelectedResume(resume);
-    setTailoredResume(null);
-    setActiveTab("tailor");
-    setError(null);
-    setSuccess(null);
-  };
-
-  const handleTailorResume = async () => {
-=======
     try {
       // Validate resume object
       if (!resume || !resume._id) {
@@ -288,29 +272,22 @@ export default function TailorPage()
     setSuccess(null);
 
     // Validation checks
->>>>>>> my-feature-branch
     if (!jobDescription.trim()) {
       setError("Please provide a job description.");
       return;
     }
-<<<<<<< HEAD
-=======
     
->>>>>>> my-feature-branch
     if (!selectedResume) {
       setError("Please select a resume to tailor.");
       return;
     }
 
-<<<<<<< HEAD
-=======
     // Check if resume has valid ID
     if (!selectedResume._id || selectedResume._id === '') {
       setError("Selected resume is invalid. Please try selecting a different resume.");
       return;
     }
 
->>>>>>> my-feature-branch
     // Prevent tailoring if resume is only stored locally
     if ((selectedResume as any)?.metadata?.method === 'local' || String(selectedResume._id).startsWith('local-')) {
       setError('This resume is stored locally in your browser. Please click "Save to Account" first to upload it before tailoring.');
@@ -350,10 +327,6 @@ export default function TailorPage()
     }
   };
 
-<<<<<<< HEAD
-  const renderResumeTemplate = (resumeData: any, template: string) => {
-    if (!resumeData) return null;
-=======
   const renderResumeTemplate = (resumeData: any, template: string, originalFile?: any) => {
     if (!resumeData) return null;
     
@@ -398,7 +371,6 @@ export default function TailorPage()
       );
     }
     
->>>>>>> my-feature-branch
     // If this is a temporarily stored file (base64 PDF), show an embed preview
     if (resumeData?.file && resumeData.file.base64) {
       const base64 = resumeData.file.base64;
@@ -470,8 +442,6 @@ export default function TailorPage()
       }
       setTempLocalResume(temp);
       setTempLocalFile(file);
-<<<<<<< HEAD
-=======
       
       console.log('Saved temp resume with file data:', {
         name: file.name,
@@ -480,7 +450,6 @@ export default function TailorPage()
         hasBase64: !!base64
       });
       
->>>>>>> my-feature-branch
       setSuccess('Saved resume locally for temporary use');
       setError(null);
     } catch (err) {
@@ -592,11 +561,6 @@ export default function TailorPage()
                     </Button>
                   </div>
                 ) : (
-<<<<<<< HEAD
-                  <div className="space-y-4">
-                    {/* Show locally stored temp resume (if any) */}
-                    {tempLocalResume && (
-=======
                   <div className="space-y-6">
                     {/* Show uploaded resume options if available */}
                     {uploadedResumeOptions.length > 0 && (
@@ -675,7 +639,6 @@ export default function TailorPage()
 
                     {/* Show locally stored temp resume (if any) */}
                     {tempLocalResume && uploadedResumeOptions.length === 0 && (
->>>>>>> my-feature-branch
                       <div className={`p-4 border rounded-lg transition-all bg-yellow-50`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -714,39 +677,6 @@ export default function TailorPage()
                       </div>
                     )}
 
-<<<<<<< HEAD
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {resumes.map((resume) => (
-                       <div
-                         key={resume._id}
-                         className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                           selectedResume?._id === resume._id
-                             ? "border-purple-500 bg-purple-50"
-                             : "border-gray-200 hover:border-gray-300"
-                         }`}
-                         onClick={() => handleResumeSelect(resume)}
-                       >
-                         <div className="flex items-start justify-between">
-                           <div className="flex-1">
-                             <h3 className="font-semibold text-gray-400">{resume.title}</h3>
-                             <p className="text-sm text-gray-500 mt-1">
-                               Template: {resume.template || "Modern"}
-                             </p>
-                             <p className="text-xs text-gray-500 mt-2">
-                               Updated: {new Date(resume.updatedAt).toLocaleDateString()}
-                             </p> 
-                             <div className="h-100 overflow-hidden mt-2 border border-gray-300 rounded">
-                             {renderResumeTemplate(resume.data, resume.template)}
-                             </div>
-                           </div>
-                           {selectedResume?._id === resume._id && (
-                             <CheckCircle className="w-5 h-5 text-purple-600" />
-                           )}
-                         </div>
-                       </div>
-                     ))}
-                    </div>
-=======
                     {/* Separator if we have uploaded options */}
                     {uploadedResumeOptions.length > 0 && resumes.length > 0 && (
                       <div className="flex items-center gap-4 my-6">
@@ -790,7 +720,6 @@ export default function TailorPage()
                        ))}
                       </div>
                     )}
->>>>>>> my-feature-branch
                   </div>
                  )}
                </CardContent>
