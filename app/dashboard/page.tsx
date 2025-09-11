@@ -136,6 +136,8 @@ export default function DashboardPage() {
   const [railOpen, setRailOpen] = useState(false)
   const [userResumes, setUserResumes] = useState<any[]>([])
   const [resumesLoading, setResumesLoading] = useState(false)
+  const [guidedPath, setGuidedPath] = useState<any[] | null>(null)
+  const [guidedLoading, setGuidedLoading] = useState(false)
   const myResumes = getResumes()
 
 
@@ -168,6 +170,28 @@ export default function DashboardPage() {
       load()
       return () => { mounted = false }
     }, [])
+
+    // fetch guided path when resumes load
+    useEffect(() => {
+      if (!userResumes || userResumes.length === 0) return
+      let mounted = true
+      async function loadGuided() {
+        try {
+          setGuidedLoading(true)
+          const firstId = userResumes[0]._id
+          const res = await fetch(`/api/resume/guided?resumeId=${firstId}&max=8`)
+          if (!res.ok) throw new Error('failed')
+          const data = await res.json()
+          if (mounted && data?.guidedPath) setGuidedPath(data.guidedPath)
+        } catch (err) {
+          console.error('Could not load guided path', err)
+        } finally {
+          if (mounted) setGuidedLoading(false)
+        }
+      }
+      loadGuided()
+      return () => { mounted = false }
+    }, [userResumes])
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-gradient-to-b from-background via-background to-background">
@@ -413,27 +437,34 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {learningModules.slice(0, 4).map((m, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-xl border bg-white/5 p-3">
-                    <div
-                      className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${
-                        m.completed ? "bg-green-500/15 text-green-500 ring-1 ring-green-500/30"
-                          : m.current ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {m.completed ? <CheckCircle2 className="size-4" /> : m.week}
+                {/* If guidedPath loaded use it, otherwise fallback to static learningModules */}
+                {(guidedLoading && !guidedPath) ? (
+                  <div className="text-sm text-muted-foreground">Loading learning path...</div>
+                ) : (
+                  (guidedPath ?? learningModules).slice(0, (guidedPath ? (guidedPath.length > 4 ? 3 : guidedPath.length) : 4)).map((m: any, i: number) => (
+                    <div key={m.id || i} className="flex items-center gap-3 rounded-xl border bg-white/5 p-3">
+                      <div className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${m.completed ? "bg-green-500/15 text-green-500 ring-1 ring-green-500/30" : m.current ? "bg-primary/15 text-primary ring-1 ring-primary/30" : "bg-muted text-muted-foreground"}`}>
+                        {m.completed ? <CheckCircle2 className="size-4" /> : (m.week || i + 1)}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`font-medium ${m.current ? "text-primary" : ""}`}>{m.title}</h4>
+                        <p className="text-xs text-muted-foreground">{m.estimatedWeeks ? `~${m.estimatedWeeks} weeks` : (m.description || '')}</p>
+                      </div>
+                      {m.current && <Badge>Current</Badge>}
                     </div>
-                    <div className="flex-1">
-                      <h4 className={`font-medium ${m.current ? "text-primary" : ""}`}>{m.title}</h4>
-                      <p className="text-xs text-muted-foreground">Week {m.week}</p>
-                    </div>
-                    {m.current && <Badge>Current</Badge>}
-                  </div>
-                ))}
-                <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/learning")}>
-                  View Full Path
-                </Button>
+                  ))
+                )}
+
+                {/* View more / full path button */}
+                {((guidedPath && guidedPath.length > 4) || (!guidedPath && learningModules.length > 4)) ? (
+                  <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/learning")}>
+                    View more
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard/learning")}>
+                    View Full Path
+                  </Button>
+                )}
               </CardContent>
             </Card>
 

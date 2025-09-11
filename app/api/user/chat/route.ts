@@ -11,7 +11,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { searchParams } = new URL(req.url);
+                function safeParseUrl(request: NextRequest) {
+                    try { return new URL(request.url); }
+                    catch (e) { const host = request.headers?.get?.('host') || 'localhost'; return new URL(request.url, `http://${host}`); }
+                }
+                const { searchParams } = safeParseUrl(req);
         // accept either param name for backward compatibility
         const chatSessionId = searchParams.get('chatSessionId') ?? searchParams.get('sessionId');
 

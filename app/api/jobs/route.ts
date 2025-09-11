@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 
+function safeParseUrl(request: Request) {
+  try {
+    return new URL(request.url);
+  } catch (e) {
+    const host = request.headers?.get?.('host') || 'localhost';
+    return new URL(request.url, `http://${host}`);
+  }
+}
+
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url);
+    const url = safeParseUrl(request);
     const params = url.searchParams;
 
     // Build SerpAPI URL
