@@ -10,7 +10,13 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.9",
+<<<<<<< HEAD
     "@inngest/agent-kit": "^0.9.0",
+=======
+    "@google/generative-ai": "^0.24.1",
+    "@inngest/agent-kit": "^0.9.0",
+    "@radix-ui/react-label": "^2.1.7",
+>>>>>>> my-feature-branch
     "@react-pdf/renderer": "^4.3.0",
     "autoprefixer": "^10.4.21",
     "axios": "^1.11.0",
@@ -22,6 +28,10 @@
     "inngest": "^3.40.2",
     "jspdf": "^3.0.2",
     "lucide-react": "^0.542.0",
+<<<<<<< HEAD
+=======
+    "mammoth": "^1.10.0",
+>>>>>>> my-feature-branch
     "mongodb": "^6.19.0",
     "mongoose": "^8.18.0",
     "next": "15.5.2",
