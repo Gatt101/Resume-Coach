@@ -39,9 +39,10 @@ export default function TailorPage()
   const [dragOver, setDragOver] = useState(false);
   const [tempLocalResume, setTempLocalResume] = useState<any | null>(null);
   const [tempLocalFile, setTempLocalFile] = useState<File | null>(null);
-
+<<<<<<< HEAD
+=======
   const [uploadedResumeOptions, setUploadedResumeOptions] = useState<any[]>([]);
-
+>>>>>>> my-feature-branch
 
   // Handle file selection from input
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,7 +137,9 @@ export default function TailorPage()
       }
 
       setSuccess("Resume uploaded successfully!");
-
+<<<<<<< HEAD
+=======
+      
       // Create multiple template options from the uploaded resume
       const extractedData = data.resume.data;
       
@@ -197,7 +200,7 @@ export default function TailorPage()
       
       setUploadedResumeOptions(uploadedOptions);
       
-
+>>>>>>> my-feature-branch
       // Prevent duplicates: only add server resume once
       setResumes((prev) => {
         if (prev.some(r => String(r._id) === String(data.resume._id))) return prev;
@@ -259,11 +262,32 @@ export default function TailorPage()
   };
 
   const handleResumeSelect = (resume: Resume) => {
+<<<<<<< HEAD
     setSelectedResume(resume);
     setTailoredResume(null);
     setActiveTab("tailor");
     setError(null);
     setSuccess(null);
+  };
+
+  const handleTailorResume = async () => {
+=======
+    try {
+      // Validate resume object
+      if (!resume || !resume._id) {
+        setError("Invalid resume selected. Please try again.");
+        return;
+      }
+
+      setSelectedResume(resume);
+      setTailoredResume(null);
+      setActiveTab("tailor");
+      setError(null);
+      setSuccess(`Selected resume: ${resume.title}`);
+    } catch (error) {
+      console.error("Error selecting resume:", error);
+      setError("Failed to select resume. Please try again.");
+    }
   };
 
   const handleTailorResume = async () => {
@@ -276,23 +300,17 @@ export default function TailorPage()
       setError("Please provide a job description.");
       return;
     }
-
+<<<<<<< HEAD
+=======
+    
+>>>>>>> my-feature-branch
     if (!selectedResume) {
       setError("Please select a resume to tailor.");
       return;
     }
 
-    // Extract the actual resume ID, handling template variations
-    let actualResumeId = selectedResume._id;
-    
-    // If this is a template variation (modern-, professional-, etc.), extract the original ID
-    if (actualResumeId.includes('-')) {
-      const parts = actualResumeId.split('-');
-      if (parts.length > 1 && ['original', 'modern', 'professional', 'creative'].includes(parts[0])) {
-        actualResumeId = parts.slice(1).join('-');
-      }
-    }
-
+<<<<<<< HEAD
+=======
     // Check if resume has valid ID
     if (!actualResumeId || actualResumeId === '') {
       setError("Selected resume is invalid. Please try selecting a different resume.");
@@ -401,7 +419,7 @@ export default function TailorPage()
       );
     }
     
-
+>>>>>>> my-feature-branch
     // If this is a temporarily stored file (base64 PDF), show an embed preview
     if (resumeData?.file && resumeData.file.base64) {
       const base64 = resumeData.file.base64;
@@ -473,7 +491,8 @@ export default function TailorPage()
       }
       setTempLocalResume(temp);
       setTempLocalFile(file);
-
+<<<<<<< HEAD
+=======
       
       console.log('Saved temp resume with file data:', {
         name: file.name,
@@ -482,7 +501,7 @@ export default function TailorPage()
         hasBase64: !!base64
       });
       
-
+>>>>>>> my-feature-branch
       setSuccess('Saved resume locally for temporary use');
       setError(null);
     } catch (err) {
@@ -939,7 +958,7 @@ export default function TailorPage()
 
                     {/* Show locally stored temp resume (if any) */}
                     {tempLocalResume && uploadedResumeOptions.length === 0 && (
-
+>>>>>>> my-feature-branch
                       <div className={`p-4 border rounded-lg transition-all bg-yellow-50`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">

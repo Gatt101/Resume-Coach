@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { GetUserResumes } from '@/lib/actions/resume.action'
+import { inngest } from '@/inngest/client'
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // Initialize Gemini AI with error handling
