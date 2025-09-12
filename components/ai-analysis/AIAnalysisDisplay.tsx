@@ -13,10 +13,10 @@ import {
   Briefcase,
   Award
 } from "lucide-react";
-import type { ResumeAnalysis } from "@/lib/services/ai-resume-service";
+import type { UnifiedResumeAnalysis } from "@/lib/services/unified-ai-service";
 
 interface AIAnalysisDisplayProps {
-  analysis: ResumeAnalysis;
+  analysis: UnifiedResumeAnalysis;
 }
 
 export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
@@ -34,30 +34,59 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisDisplayProps) {
 
   return (
     <div className="space-y-6">
-      {/* Overall Score */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Overall Resume Score
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className={`text-4xl font-bold ${getScoreColor(analysis.overallScore)}`}>
-              {analysis.overallScore}%
+      {/* Overall Scores */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Overall Resume Score
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className={`text-4xl font-bold ${getScoreColor(analysis.overallScore)}`}>
+                {analysis.overallScore}%
+              </div>
+              <div className="flex-1">
+                <Progress value={analysis.overallScore} className="h-3" />
+                <p className="text-sm text-gray-600 mt-2">
+                  {analysis.overallScore >= 80 ? "Excellent match!" : 
+                   analysis.overallScore >= 60 ? "Good foundation, room for improvement" : 
+                   "Needs significant enhancement"}
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <Progress value={analysis.overallScore} className="h-3" />
-              <p className="text-sm text-gray-600 mt-2">
-                {analysis.overallScore >= 80 ? "Excellent match!" : 
-                 analysis.overallScore >= 60 ? "Good foundation, room for improvement" : 
-                 "Needs significant enhancement"}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* ATS Score */}
+        {analysis.atsScore !== undefined && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                ATS Compatibility Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className={`text-4xl font-bold ${getScoreColor(analysis.atsScore)}`}>
+                  {analysis.atsScore}%
+                </div>
+                <div className="flex-1">
+                  <Progress value={analysis.atsScore} className="h-3" />
+                  <p className="text-sm text-gray-600 mt-2">
+                    {analysis.atsScore >= 80 ? "ATS-friendly format!" : 
+                     analysis.atsScore >= 60 ? "Good ATS compatibility" : 
+                     "Needs ATS optimization"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Section Scores */}
       <Card>

@@ -1,5 +1,6 @@
-// RE-ENABLED: OpenAI service restored to work alongside Gemini
-// This service now supports both OpenAI and Gemini providers
+// BACKUP OF ORIGINAL OPENAI-BASED AI RESUME SERVICE
+// This file contains the original OpenAI implementation
+// Currently disabled in favor of Gemini AI implementation
 
 interface ResumeAnalysis {
   strengths: string[];
@@ -269,5 +270,5 @@ class AIResumeService {
   }
 }
 
-export const aiResumeService = new AIResumeService();
+export const aiResumeServiceBackup = new AIResumeService();
 export type { ResumeAnalysis, EnhancedResumeData };

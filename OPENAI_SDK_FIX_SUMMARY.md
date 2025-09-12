@@ -63,9 +63,7 @@ const completion = await openai.chat.completions.create({
 5. **Reliability**: More reliable than manual fetch requests
 
 ## Environment Configuration
-```env
-OPENAI_API_KEY=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
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
+
 ```
 
 ## Testing
