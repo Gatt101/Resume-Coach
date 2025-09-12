@@ -1,21 +1,19 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { ocrService, type OCRResult, type OCRError } from "@/lib/services/ocr-service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import mammoth from "mammoth";
 
-// Initialize Gemini AI with error handling
+// Initialize Gemini AI for resume parsing
 let genAI: GoogleGenerativeAI | null = null;
 try {
   if (process.env.GEMINI_API_KEY) {
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  } else {
-    console.error("GEMINI_API_KEY not found in environment variables");
   }
 } catch (error) {
   console.error("Error initializing Gemini AI:", error);
 }
 
-// Simple retry utility for API calls
+// Retry utility for AI parsing
 async function retryApiCall<T>(
   fn: () => Promise<T>,
   maxRetries: number = 2,
@@ -25,17 +23,12 @@ async function retryApiCall<T>(
     try {
       return await fn();
     } catch (error: any) {
-      // Don't retry on authentication errors
       if (error.message?.includes('401') || error.message?.includes('403')) {
         throw error;
       }
-
-      // If this is the last attempt, throw the error
-      if (attempt === maxRetries - 1) {
-        throw error;
-      }
-
-      console.log(`API call attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error.message);
+      if (attempt === maxRetries - 1) throw error;
+      
+      console.log(`AI parsing attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -66,150 +59,119 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file type and size
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "text/plain"
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid file type. Please upload PDF, DOC, DOCX, or TXT files." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      return new Response(
-        JSON.stringify({ error: "File size exceeds 5MB limit" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Extract text from file
-    let extractedText = "";
-
+    // Process file with enhanced OCR service
+    let ocrResult: OCRResult;
     try {
-      const buffer = await file.arrayBuffer();
-
-      if (file.type === "text/plain") {
-        extractedText = await file.text();
-      } else if (file.type === "application/pdf") {
-        // Use Gemini Vision API for PDF text extraction
-        if (genAI) {
-          try {
-            console.log("Processing PDF with Gemini Vision API...");
-            const base64 = Buffer.from(buffer).toString('base64');
-
-            extractedText = await retryApiCall(async () => {
-              const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-              const result = await model.generateContent([
-                "Extract all text content from this resume document. Return only the raw text content without any formatting or analysis. Include all personal information, work experience, education, skills, and other resume sections.",
-                {
-                  inlineData: {
-                    data: base64,
-                    mimeType: file.type
-                  }
-                }
-              ]);
-
-              return result.response.text();
-            });
-
-            console.log("Successfully extracted text from PDF using Gemini Vision API");
-          } catch (geminiError) {
-            console.error("Gemini Vision API error:", geminiError);
-            extractedText = "Error extracting text from PDF. Please ensure the PDF contains selectable text or try converting to a text-based format.";
-          }
-        } else {
-          extractedText = "PDF processing requires Gemini API. Please ensure GEMINI_API_KEY is configured.";
-        }
-      } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-        // Use mammoth for DOCX files
-        try {
-          const docxBuffer = Buffer.from(buffer);
-          const result = await mammoth.extractRawText({ buffer: docxBuffer });
-          extractedText = result.value;
-        } catch (docxError) {
-          console.error("Error parsing DOCX:", docxError);
-          extractedText = "Error extracting text from DOCX file. Please try converting to PDF or plain text.";
-        }
-      } else if (file.type === "application/msword") {
-        // For older DOC files, provide guidance
-        extractedText = "Legacy DOC format detected. For best results, please convert to DOCX or PDF format and upload again.";
-      } else {
-        extractedText = "Unsupported file format for text extraction.";
-      }
+      console.log(`Processing file: ${file.name} (${file.type}, ${file.size} bytes)`);
+      ocrResult = await ocrService.processFile(file);
+      console.log(`OCR completed in ${ocrResult.processingTime}ms with confidence: ${ocrResult.confidence}`);
     } catch (error) {
-      console.error("Error extracting text from file:", error);
-      extractedText = "Error processing document. Please try a different file format.";
+      console.error("OCR processing failed:", error);
+      
+      const ocrError = error as OCRError;
+      return new Response(
+        JSON.stringify({
+          error: "File processing failed",
+          details: ocrError.message,
+          code: ocrError.code,
+          suggestions: ocrError.suggestions,
+          recoverable: ocrError.recoverable
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    // Use AI to parse the extracted text into structured resume data
+    // Parse extracted text into structured resume data
     let structuredData;
     try {
-      if (extractedText && extractedText.trim().length > 50 && genAI) {
+      if (ocrResult.extractedText && ocrResult.extractedText.trim().length > 50 && genAI) {
         console.log("Parsing extracted text with Gemini AI...");
 
         structuredData = await retryApiCall(async () => {
-          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-          const parsePrompt = `
-            Parse the following resume text and extract structured information. Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
-            {
-              "name": "Full name of the person",
-              "email": "email@example.com",
-              "phone": "phone number",
-              "location": "city, state/country",
-              "linkedin": "linkedin URL or empty string",
-              "website": "website URL or empty string",
-              "summary": "professional summary or objective",
-              "experience": [
-                {
-                  "title": "job title",
-                  "company": "company name",
-                  "years": "employment period (e.g., '2020 - 2022')",
-                  "description": "brief role description",
-                  "achievements": ["achievement 1", "achievement 2"]
-                }
-              ],
-              "skills": ["skill1", "skill2", "skill3"],
-              "education": "education details",
-              "projects": [
-                {
-                  "name": "project name",
-                  "description": "project description",
-                  "technologies": ["tech1", "tech2"],
-                  "link": "project URL or empty string"
-                }
-              ],
-              "certifications": ["certification1", "certification2"]
-            }
+          const model = genAI!.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const parsePrompt = `Extract resume information and return ONLY valid JSON. No explanations, no markdown, no extra text.
 
-            Resume text to parse:
-            ${extractedText}
-          `;
+REQUIRED JSON FORMAT:
+{
+  "name": "string",
+  "email": "string", 
+  "phone": "string",
+  "location": "string",
+  "linkedin": "",
+  "website": "",
+  "summary": "string",
+  "experience": [
+    {
+      "title": "string",
+      "company": "string", 
+      "years": "string",
+      "description": "string",
+      "achievements": ["string"]
+    }
+  ],
+  "skills": ["string"],
+  "education": "string",
+  "projects": [
+    {
+      "name": "string",
+      "description": "string", 
+      "technologies": ["string"],
+      "link": ""
+    }
+  ],
+  "certifications": ["string"]
+}
+
+RULES:
+- Return ONLY the JSON object
+- Use empty strings "" for missing values
+- Use empty arrays [] for missing lists
+- Ensure all strings are properly quoted
+- No trailing commas
+- No comments or explanations
+
+RESUME TEXT:
+${ocrResult.extractedText.substring(0, 3000)}`;
 
           const parseResult = await model.generateContent(parsePrompt);
           const parsedText = parseResult.response.text();
 
           // Clean up the response to extract JSON
           let jsonText = parsedText.trim();
-
-          // Remove markdown code blocks if present
+          
+          // Remove markdown code blocks
           if (jsonText.startsWith('```json')) {
             jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
           } else if (jsonText.startsWith('```')) {
             jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
           }
 
-          // Try to find JSON object in the response
-          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error("Could not find valid JSON in AI response");
+          // Find JSON object boundaries more carefully
+          const startIndex = jsonText.indexOf('{');
+          const lastIndex = jsonText.lastIndexOf('}');
+          
+          if (startIndex === -1 || lastIndex === -1 || startIndex >= lastIndex) {
+            throw new Error("No valid JSON object found in AI response");
+          }
+          
+          const jsonString = jsonText.substring(startIndex, lastIndex + 1);
+          
+          // Clean up common JSON issues
+          let cleanedJson = jsonString
+            .replace(/,\s*}/g, '}')  // Remove trailing commas
+            .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+            .replace(/\n/g, ' ')     // Replace newlines with spaces
+            .replace(/\r/g, '')      // Remove carriage returns
+            .replace(/\t/g, ' ')     // Replace tabs with spaces
+            .replace(/\s+/g, ' ');   // Normalize whitespace
+          
+          try {
+            return JSON.parse(cleanedJson);
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Cleaned JSON string:', cleanedJson.substring(0, 500) + '...');
+            throw new Error(`Failed to parse AI response as JSON: ${parseError}`);
           }
         });
 
@@ -219,27 +181,45 @@ export async function POST(req: NextRequest) {
       }
     } catch (error) {
       console.error("Error parsing resume with AI:", error);
-      // Fallback structured data with extracted text
+      
+      // Try to extract basic information from the text as fallback
+      const text = ocrResult.extractedText;
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      // Simple extraction logic
+      const emailMatch = text.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+      const phoneMatch = text.match(/[\+]?[\d\s\-\(\)]{10,}/);
+      const nameMatch = lines[0] && lines[0].length < 50 ? lines[0] : "";
+      
+      // Extract skills (look for common skill keywords)
+      const skillKeywords = ['javascript', 'python', 'react', 'node', 'sql', 'aws', 'docker', 'git', 'java', 'typescript'];
+      const foundSkills = skillKeywords.filter(skill => 
+        text.toLowerCase().includes(skill.toLowerCase())
+      );
+      
       structuredData = {
-        name: "Please update your name",
-        email: "",
-        phone: "",
+        name: nameMatch || "Please update your name",
+        email: emailMatch ? emailMatch[0] : "",
+        phone: phoneMatch ? phoneMatch[0].replace(/\s+/g, ' ').trim() : "",
         location: "",
         linkedin: "",
         website: "",
-        summary: extractedText.length > 100 ? extractedText.substring(0, 500) + "..." : "Please add your professional summary",
+        summary: text.length > 100 ? 
+          text.substring(0, 500) + "..." : 
+          "Please add your professional summary",
         experience: [],
-        skills: [],
+        skills: foundSkills,
         education: "",
         projects: [],
         certifications: []
       };
+      
+      console.log("Used fallback parsing with basic extraction");
     }
 
-    // Return the processed resume data without saving to database
-    // The client will store this locally in browser storage
+    // Create enhanced resume data with OCR results
     const processedResume = {
-      id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate a local ID
+      id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       userId,
       title: title || file.name || "Uploaded Resume",
       template,
@@ -251,27 +231,50 @@ export async function POST(req: NextRequest) {
         colorScheme: "blue",
         layout: "standard",
         uploadedFile: {
-          originalName: file.name,
-          size: file.size,
-          type: file.type,
-          extractedText: extractedText.substring(0, 1000) // Store first 1000 chars for reference
+          originalName: ocrResult.originalFile.name,
+          size: ocrResult.originalFile.size,
+          type: ocrResult.originalFile.type,
+          extractedText: ocrResult.extractedText.substring(0, 1000)
+        },
+        ocrResults: {
+          confidence: ocrResult.confidence,
+          method: ocrResult.method,
+          processingTime: ocrResult.processingTime,
+          errorRegions: ocrResult.errorRegions,
+          hasErrors: ocrResult.errorRegions.length > 0
         }
       },
-      isLocal: true // Flag to indicate this is stored locally, not in database
+      isLocal: true
     };
 
-    console.log("Processed resume data (will be stored locally):", {
-      ...processedResume,
-      data: { ...processedResume.data, summary: processedResume.data.summary?.substring(0, 100) + "..." }
+    // Validate extracted text quality
+    const textValidation = ocrService.validateExtractedText(ocrResult.extractedText);
+
+    console.log("Enhanced OCR processing completed:", {
+      confidence: ocrResult.confidence,
+      method: ocrResult.method,
+      processingTime: ocrResult.processingTime,
+      errorCount: ocrResult.errorRegions.length,
+      textValid: textValidation.isValid
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Resume processed successfully - stored locally in browser",
+        message: "Resume processed with enhanced OCR",
         resume: processedResume,
-        extractedText: extractedText.substring(0, 500) + "...", // Preview of extracted text
-        instructions: "This resume is stored locally in your browser. Use 'Save to Account' to persist it to your account."
+        ocrResults: {
+          extractedText: ocrResult.extractedText,
+          confidence: ocrResult.confidence,
+          method: ocrResult.method,
+          processingTime: ocrResult.processingTime,
+          errorRegions: ocrResult.errorRegions,
+          originalFile: ocrResult.originalFile,
+          textValidation
+        },
+        instructions: ocrResult.confidence < 0.8 ? 
+          "Low confidence detected. Please review and correct the extracted text." :
+          "Text extracted successfully. Review and proceed to tailoring."
       }),
       {
         status: 200,

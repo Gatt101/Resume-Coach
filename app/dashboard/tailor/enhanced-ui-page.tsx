@@ -19,14 +19,10 @@ import {
   Download,
   Sparkles,
   Target,
-  TrendingUp,
-  Bot,
-  Zap,
-  FileDown,
-  Settings
+  TrendingUp
 } from "lucide-react";
 
-// Import new components
+// Import components
 import { DualPaneEditor } from "@/components/editor/DualPaneEditor";
 import { OCRProgressTracker } from "@/components/ocr/OCRProgressTracker";
 import { OCRErrorDisplay } from "@/components/ocr/OCRErrorDisplay";
@@ -34,9 +30,9 @@ import { JobAnalysisDisplay } from "@/components/job-analysis/JobAnalysisDisplay
 import { AIAnalysisDisplay } from "@/components/ai-analysis/AIAnalysisDisplay";
 import { ModernProfessionalTemplate } from "@/components/resume-templates/ModernProfessionalTemplate";
 import { jobAnalysisService } from "@/lib/services/job-analysis-service";
-import { unifiedAIService, type AIProvider, type UnifiedResumeAnalysis, type UnifiedEnhancedResumeData } from "@/lib/services/unified-ai-service";
-import { downloadService } from "@/lib/services/download-service";
+import { aiResumeService } from "@/lib/services/ai-resume-service";
 import type { JobAnalysis, CompatibilityScore } from "@/lib/services/job-analysis-service";
+import type { ResumeAnalysis, EnhancedResumeData } from "@/lib/services/ai-resume-service";
 import type { OCRResult } from "@/lib/services/ocr-service";
 
 // Animation variants
@@ -88,7 +84,7 @@ interface Resume {
   updatedAt: string;
 }
 
-export default function TailorPage() {
+export default function EnhancedTailorPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [tailoredResume, setTailoredResume] = useState<any | null>(null);
   const [isTailoring, setIsTailoring] = useState(false);
@@ -109,10 +105,8 @@ export default function TailorPage() {
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   
   // AI Analysis state
-  const [aiAnalysis, setAiAnalysis] = useState<UnifiedResumeAnalysis | null>(null);
-  const [enhancedResumeData, setEnhancedResumeData] = useState<UnifiedEnhancedResumeData | null>(null);
-  const [selectedAIProvider, setSelectedAIProvider] = useState<AIProvider>('gemini');
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [enhancedResumeData, setEnhancedResumeData] = useState<EnhancedResumeData | null>(null);
 
   // Handle file upload
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +163,7 @@ export default function TailorPage() {
     }
   };
 
-  // Analyze job description with selected AI provider
+  // Analyze job description with AI
   const analyzeJobDescription = async () => {
     if (!jobDescription.trim() || !editedText) {
       setError("Please provide both job description and resume content.");
@@ -179,10 +173,9 @@ export default function TailorPage() {
     setIsAnalyzing(true);
     setError(null);
     try {
-      // Run both analyses in parallel - using selected AI provider
       const [analysis, aiAnalysisResult] = await Promise.all([
         jobAnalysisService.analyzeJobDescription(jobDescription),
-        unifiedAIService.analyzeResume(editedText, jobDescription, selectedAIProvider, file || undefined)
+        aiResumeService.analyzeResume(editedText, jobDescription)
       ]);
       
       setJobAnalysis(analysis);
@@ -191,16 +184,16 @@ export default function TailorPage() {
       const score = jobAnalysisService.calculateCompatibility(editedText, analysis);
       setCompatibilityScore(score);
       setHasAnalyzed(true);
-      setSuccess(`Resume analyzed successfully with ${unifiedAIService.getProviderDisplayName(selectedAIProvider)} insights!`);
+      setSuccess("Resume analyzed successfully with AI insights!");
     } catch (error) {
       console.error('Analysis error:', error);
-      setError(`Failed to analyze resume with ${unifiedAIService.getProviderDisplayName(selectedAIProvider)}. Please try again.`);
+      setError('Failed to analyze resume. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Handle AI-powered tailoring with selected provider
+  // Handle AI-powered tailoring
   const handleTailorResume = async () => {
     if (!jobDescription.trim() || !editedText) {
       setError("Please provide both job description and resume content.");
@@ -210,52 +203,17 @@ export default function TailorPage() {
     setIsTailoring(true);
     setError(null);
     try {
-      // Use selected AI provider to enhance the resume
-      const enhancedData = await unifiedAIService.enhanceResume(editedText, jobDescription, selectedAIProvider);
+      const enhancedData = await aiResumeService.enhanceResume(editedText, jobDescription);
       
       setEnhancedResumeData(enhancedData);
       setTailoredResume(enhancedData);
       setActiveTab("result");
-      setSuccess(`Resume successfully tailored with ${unifiedAIService.getProviderDisplayName(selectedAIProvider)} optimization!`);
+      setSuccess("Resume successfully tailored with AI optimization!");
     } catch (error) {
       console.error('Tailoring error:', error);
-      setError(`Failed to tailor resume with ${unifiedAIService.getProviderDisplayName(selectedAIProvider)}. Please try again.`);
+      setError("Failed to tailor resume. Please try again.");
     } finally {
       setIsTailoring(false);
-    }
-  };
-
-  // Handle download functions
-  const handleDownload = async (format: 'pdf' | 'docx' | 'txt') => {
-    if (!enhancedResumeData) {
-      setError("No resume data available for download.");
-      return;
-    }
-
-    setIsDownloading(true);
-    try {
-      const filename = `${enhancedResumeData.name.replace(/\s+/g, '_')}_tailored_resume`;
-      
-      switch (format) {
-        case 'pdf':
-          await downloadService.downloadAsPDF(enhancedResumeData, filename);
-          break;
-        case 'docx':
-          await downloadService.downloadAsDOCX(enhancedResumeData, filename);
-          break;
-        case 'txt':
-          await downloadService.downloadAsText(enhancedResumeData, filename);
-          break;
-      }
-      
-      const formatName = format === 'docx' ? 'Word document' : format.toUpperCase();
-      setSuccess(`Resume downloaded successfully as ${formatName}!`);
-    } catch (error) {
-      console.error('Download error:', error);
-      const formatName = format === 'docx' ? 'Word document' : format.toUpperCase();
-      setError(`Failed to download resume as ${formatName}. Please try again.`);
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -468,24 +426,9 @@ export default function TailorPage() {
                     </motion.div>
 
                     <motion.div 
-                      className="flex justify-center gap-4"
+                      className="flex justify-center"
                       variants={itemVariants}
                     >
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          onClick={() => setActiveTab("tailor")}
-                          disabled={!editedText}
-                          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-xl font-medium shadow-lg"
-                        >
-                          <Target className="mr-2 w-5 h-5" />
-                          Go to Analyze
-                        </Button>
-                      </motion.div>
-                      
                       <motion.div
                         variants={buttonVariants}
                         whileHover="hover"
@@ -577,85 +520,6 @@ export default function TailorPage() {
                 </motion.div>
               </motion.div>
 
-              {/* AI Provider Selection */}
-              <motion.div 
-                className="flex justify-center"
-                variants={itemVariants}
-              >
-                <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-3 text-lg">
-                      <div className="p-2 bg-indigo-600/20 rounded-lg">
-                        <Settings className="w-5 h-5 text-indigo-400" />
-                      </div>
-                      Choose AI Provider
-                    </CardTitle>
-                    <p className="text-gray-400 text-sm">Select your preferred AI engine for analysis and tailoring</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          onClick={() => setSelectedAIProvider('gemini')}
-                          variant={selectedAIProvider === 'gemini' ? 'default' : 'outline'}
-                          className={`w-full h-auto p-4 flex flex-col items-center gap-2 ${
-                            selectedAIProvider === 'gemini' 
-                              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0' 
-                              : 'border-gray-600 text-gray-300 hover:border-blue-500'
-                          }`}
-                        >
-                          <Bot className="w-6 h-6" />
-                          <div className="text-center">
-                            <div className="font-semibold">Gemini AI</div>
-                            <div className="text-xs opacity-80">ATS Analysis • Structure Check</div>
-                          </div>
-                        </Button>
-                      </motion.div>
-
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          onClick={() => setSelectedAIProvider('openai')}
-                          variant={selectedAIProvider === 'openai' ? 'default' : 'outline'}
-                          className={`w-full h-auto p-4 flex flex-col items-center gap-2 ${
-                            selectedAIProvider === 'openai' 
-                              ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0' 
-                              : 'border-gray-600 text-gray-300 hover:border-green-500'
-                          }`}
-                        >
-                          <Zap className="w-6 h-6" />
-                          <div className="text-center">
-                            <div className="font-semibold">OpenAI GPT</div>
-                            <div className="text-xs opacity-80">Creative Enhancement • Industry Focus</div>
-                          </div>
-                        </Button>
-                      </motion.div>
-                    </div>
-                    
-                    <div className="mt-4 p-3 bg-gray-900/50 rounded-lg">
-                      <div className="text-sm text-gray-300 font-medium mb-2">
-                        {unifiedAIService.getProviderDisplayName(selectedAIProvider)} Features:
-                      </div>
-                      <ul className="text-xs text-gray-400 space-y-1">
-                        {unifiedAIService.getProviderFeatures(selectedAIProvider).map((feature, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-
               {/* Enhanced Action Buttons */}
               <motion.div 
                 className="flex justify-center gap-6"
@@ -669,21 +533,17 @@ export default function TailorPage() {
                   <Button
                     onClick={analyzeJobDescription}
                     disabled={isAnalyzing || !jobDescription.trim() || !editedText}
-                    className={`px-8 py-4 rounded-xl font-medium shadow-lg text-lg ${
-                      selectedAIProvider === 'gemini'
-                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-                        : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
-                    } text-white`}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-medium shadow-lg text-lg"
                   >
                     {isAnalyzing ? (
                       <>
                         <Loader2 className="mr-3 w-6 h-6 animate-spin" />
-                        Analyzing with {unifiedAIService.getProviderDisplayName(selectedAIProvider)}...
+                        Analyzing with AI...
                       </>
                     ) : (
                       <>
                         <BarChart3 className="mr-3 w-6 h-6" />
-                        Analyze with {unifiedAIService.getProviderDisplayName(selectedAIProvider)}
+                        Analyze Match Score
                       </>
                     )}
                   </Button>
@@ -702,12 +562,12 @@ export default function TailorPage() {
                     {isTailoring ? (
                       <>
                         <Loader2 className="mr-3 w-6 h-6 animate-spin" />
-                        Tailoring with {unifiedAIService.getProviderDisplayName(selectedAIProvider)}...
+                        AI Tailoring...
                       </>
                     ) : (
                       <>
                         <Wand2 className="mr-3 w-6 h-6" />
-                        Tailor with {unifiedAIService.getProviderDisplayName(selectedAIProvider)}
+                        Tailor Resume
                       </>
                     )}
                   </Button>
@@ -726,23 +586,12 @@ export default function TailorPage() {
                     <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                       <CardHeader className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border-b border-gray-700">
                         <CardTitle className="flex items-center gap-3 text-xl">
-                          <div className={`p-2 rounded-lg ${
-                            aiAnalysis.provider === 'gemini' 
-                              ? 'bg-blue-600/20' 
-                              : 'bg-green-600/20'
-                          }`}>
-                            {aiAnalysis.provider === 'gemini' ? (
-                              <Bot className="w-6 h-6 text-blue-400" />
-                            ) : (
-                              <Zap className="w-6 h-6 text-green-400" />
-                            )}
+                          <div className="p-2 bg-purple-600/20 rounded-lg">
+                            <Sparkles className="w-6 h-6 text-purple-400" />
                           </div>
-                          {unifiedAIService.getProviderDisplayName(aiAnalysis.provider)} Resume Analysis
+                          AI Resume Analysis
                         </CardTitle>
-                        <p className="text-gray-400">
-                          Comprehensive {unifiedAIService.getProviderDisplayName(aiAnalysis.provider)}-powered analysis
-                          {aiAnalysis.atsScore !== undefined && ' with ATS compatibility check'}
-                        </p>
+                        <p className="text-gray-400">Comprehensive AI-powered analysis and recommendations</p>
                       </CardHeader>
                       <CardContent className="p-6">
                         <AIAnalysisDisplay analysis={aiAnalysis} />
@@ -788,80 +637,24 @@ export default function TailorPage() {
               >
                 <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                   <CardHeader className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border-b border-gray-700">
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-2xl">
-                        <div className="p-2 bg-purple-600/20 rounded-lg">
-                          <Sparkles className="w-7 h-7 text-purple-400" />
-                        </div>
-                        Your Tailored Resume
+                    <CardTitle className="flex items-center gap-3 text-2xl">
+                      <div className="p-2 bg-purple-600/20 rounded-lg">
+                        <Sparkles className="w-7 h-7 text-purple-400" />
                       </div>
-                      
-                      {/* Download Buttons */}
-                      {tailoredResume && (
-                        <div className="flex items-center gap-2">
-                          <motion.div
-                            variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                          >
-                            <Button
-                              onClick={() => handleDownload('pdf')}
-                              disabled={isDownloading}
-                              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm"
-                            >
-                              {isDownloading ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <FileDown className="w-4 h-4 mr-2" />
-                                  PDF
-                                </>
-                              )}
-                            </Button>
-                          </motion.div>
-                          
-                          <motion.div
-                            variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                          >
-                            <Button
-                              onClick={() => handleDownload('docx')}
-                              disabled={isDownloading}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
-                            >
-                              {isDownloading ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <FileDown className="w-4 h-4 mr-2" />
-                                  Word
-                                </>
-                              )}
-                            </Button>
-                          </motion.div>
-                        </div>
-                      )}
+                      Your Tailored Resume
                     </CardTitle>
-                    <p className="text-gray-400">
-                      {enhancedResumeData 
-                        ? `${unifiedAIService.getProviderDisplayName(enhancedResumeData.provider)}-optimized resume perfectly aligned with the job requirements`
-                        : 'AI-optimized resume perfectly aligned with the job requirements'
-                      }
-                    </p>
+                    <p className="text-gray-400">AI-optimized resume perfectly aligned with the job requirements</p>
                   </CardHeader>
                   <CardContent className="p-8">
                     {tailoredResume ? (
                       <div className="bg-white rounded-xl p-8 shadow-2xl">
-                        <div className="text-gray-900">
-                          <ModernProfessionalTemplate data={tailoredResume} />
-                        </div>
+                        <ModernProfessionalTemplate data={tailoredResume} />
                       </div>
                     ) : (
-                      <div className="text-center py-16">
-                        <Sparkles className="w-16 h-16 mx-auto mb-6 text-gray-500 opacity-50" />
-                        <p className="text-xl mb-2 text-white">No tailored resume available</p>
-                        <p className="text-gray-400">Complete the analysis and tailoring process first</p>
+                      <div className="text-center py-16 text-gray-500">
+                        <Sparkles className="w-16 h-16 mx-auto mb-6 opacity-50" />
+                        <p className="text-xl mb-2">No tailored resume available</p>
+                        <p>Complete the analysis and tailoring process first</p>
                       </div>
                     )}
                   </CardContent>
