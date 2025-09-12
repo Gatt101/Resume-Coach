@@ -5,8 +5,11 @@ import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Send, MessageSquare, Loader2, Search } from "lucide-react"
+import { ArrowLeft, Send, MessageSquare, Loader2, Search, Crown, Zap, CheckCircle, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useUser } from "@clerk/nextjs"
+import HeroBackdrop from '@/components/HeroBackdrop'
+import Link from "next/link"
 
 interface Message {
     id: string
@@ -25,6 +28,7 @@ interface ChatSession
 
 export default function ChatPage() {
     const router = useRouter()
+    const { user } = useUser()
     const [messages, setMessages] = useState<Message[]>([])
     const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
     const [selectedSession, setSelectedSession] = useState<string | null>(null)
@@ -33,10 +37,51 @@ export default function ChatPage() {
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
     const [chatSessionId, setChatSessionId] = useState<string>(() => uuidv4())
+    const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null)
+    const [subscriptionLoading, setSubscriptionLoading] = useState(true)
     const listRef = useRef<HTMLDivElement | null>(null)
 
     useEffect(() => {
+        async function checkSubscription() {
+            if (!user) return
+            
+            try {
+                // Check subscription status via API
+                const response = await fetch('/api/subscription/status')
+                if (response.ok) {
+                    const data = await response.json()
+                    setIsSubscribed(data.isSubscribed)
+                } else {
+                    // Fallback to client-side check
+                    const hasSubscription = user.publicMetadata?.subscription === 'plus' || 
+                                          user.publicMetadata?.plan === 'plus' ||
+                                          user.publicMetadata?.hasActiveSubscription === true
+                    setIsSubscribed(hasSubscription)
+                }
+            } catch (error) {
+                console.error("Failed to check subscription", error)
+                // Fallback to client-side check
+                const hasSubscription = user.publicMetadata?.subscription === 'plus' || 
+                                      user.publicMetadata?.plan === 'plus' ||
+                                      user.publicMetadata?.hasActiveSubscription === true
+                setIsSubscribed(hasSubscription)
+            } finally {
+                setSubscriptionLoading(false)
+            }
+        }
+        
+        checkSubscription()
+        
+        // Set up interval to check subscription status periodically
+        const interval = setInterval(checkSubscription, 30000) // Check every 30 seconds
+        
+        return () => clearInterval(interval)
+    }, [user])
+
+    useEffect(() => {
         async function fetchChatSessions() {
+            if (!isSubscribed) return
+            
             setSessionsLoading(true)
             try {
                 const response = await fetch("/api/user/chat")
@@ -52,7 +97,7 @@ export default function ChatPage() {
             }
         }
         fetchChatSessions()
-    }, [])
+    }, [isSubscribed])
     
     useEffect(() => {
         const timeoutId = setTimeout(async () => {
@@ -181,6 +226,18 @@ export default function ChatPage() {
     const onSend = async () => {
         const text = input.trim()
         if (!text) return
+        
+        // Check subscription before sending
+        if (!isSubscribed) {
+            setMessages(prev => [...prev, { 
+                id: uuidv4(), 
+                text: "🚫 This feature requires a Plus subscription. Please upgrade to access AI Career Chat.", 
+                role: 'assistant', 
+                time: new Date().toISOString() 
+            }])
+            return
+        }
+        
         setSending(true)
 
         const userMsg: Message = { id: uuidv4(), text, role: 'user', time: new Date().toISOString() }
@@ -245,10 +302,146 @@ export default function ChatPage() {
         } catch { return '' }
     }
 
+    // Subscription Screen Component
+    const SubscriptionScreen = () => (
+        <div className="w-full">
+            <Card className="min-h-[80vh] w-full flex flex-col bg-transparent border-0 rounded-lg">
+                <CardHeader className="flex-shrink-0 text-center">
+                    <div className="flex justify-center mb-4">
+                        <div className="p-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full">
+                            <Crown className="w-12 h-12 text-white" />
+                        </div>
+                    </div>
+                    <CardTitle className="text-3xl font-bold text-white mb-2">Unlock AI Career Chat</CardTitle>
+                    <p className="text-gray-400 text-lg">Get personalized career advice from our AI assistant</p>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col items-center justify-center p-4">
+                    <div className="max-w-none w-full mx-auto text-center space-y-8">
+                        <div className="space-y-6">
+                            <h3 className="text-2xl font-semibold text-white mb-6">What you'll get with Plus:</h3>
+                            
+                            <div className="grid gap-4 text-left">
+                                <div className="flex items-center gap-3 p-4 bg-gray-800/50 rounded-lg">
+                                    <div className="p-2 bg-green-600 rounded-lg">
+                                        <MessageSquare className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold text-white">Unlimited AI Career Chat</h4>
+                                        <p className="text-gray-400 text-sm">Ask unlimited questions about resumes, interviews, and career growth</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 p-4 bg-gray-800/50 rounded-lg">
+                                    <div className="p-2 bg-blue-600 rounded-lg">
+                                        <Zap className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold text-white">Advanced Resume Analysis</h4>
+                                        <p className="text-gray-400 text-sm">Get detailed feedback and optimization suggestions</p>
+                                    </div>
+                                </div>
+                                
+                                 <div className="flex items-center gap-3 p-4 bg-gray-800/50 rounded-lg">
+                                     <div className="p-2 bg-purple-600 rounded-lg">
+                                         <Star className="w-5 h-5 text-white" />
+                                     </div>
+                                     <div>
+                                         <h4 className="font-semibold text-white">Priority Support</h4>
+                                         <p className="text-gray-400 text-sm">Get faster responses and priority customer support</p>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg p-6">
+                             <h4 className="text-xl font-semibold text-white mb-2">Ready to accelerate your career?</h4>
+                             <p className="text-gray-300 mb-4">Join thousands of professionals who've transformed their careers with AI-powered insights.</p>
+                             
+                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                <h2>Steps to Purchase:</h2>
+                                <p>1.  Go back to dashboard</p>
+                                <p>2. Click on Your Account logo</p>
+                                <p>3. In the Settings Go to billing Section!</p>
+                             </div>
+                         </div>
+                        
+                        <div className="text-sm text-gray-500">
+                            <p>✨ 7-day free trial • Cancel anytime • No hidden fees</p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    )
+
+    // Show loading screen while checking subscription
+    if (subscriptionLoading) {
+        return (
+            <div className="relative flex min-h-screen overflow-hidden bg-gradient-to-b from-background via-background to-background px-4 sm:px-6 py-6 text-white">
+                <div className="pointer-events-none absolute inset-0 -z-10">
+                    <div className="absolute -top-24 -right-20 size-72 rounded-full bg-primary/20 blur-3xl" />
+                    <div className="absolute -bottom-20 -left-24 size-72 rounded-full bg-purple-500/20 blur-3xl" />
+                </div>
+                <div className="max-w-6xl mx-auto flex items-center justify-center">
+                    <div className="text-center">
+                        <Loader2 className="w-12 h-12 animate-spin text-green-600 mx-auto mb-4" />
+                        <p className="text-gray-400">Loading chat...</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Show subscription screen for non-subscribed users
+    if (!isSubscribed) {
+        return (
+            <div className="relative flex min-h-screen overflow-hidden bg-gradient-to-b from-background via-background to-background px-4 sm:px-6 py-6 text-white">
+                <div className="pointer-events-none absolute inset-0 -z-10">
+                    <div className="absolute -top-24 -right-20 size-72 rounded-full bg-primary/20 blur-3xl" />
+                    <div className="absolute -bottom-20 -left-24 size-72 rounded-full bg-purple-500/20 blur-3xl" />
+                </div>
+                
+                <div className="w-full">
+                    <main className="w-full">
+                        <HeroBackdrop className="w-full min-h-[75vh]">
+                            <div className="flex items-center gap-4 mb-6">
+                                <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    onClick={() => router.push('/dashboard')}
+                                    className="border-gray-600 text-white hover:bg-gray-700"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                </Button>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
+                                        <Crown className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-3xl font-bold">AI Career Chat</h1>
+                                        <p className="text-gray-400">Premium feature - Upgrade to Plus for unlimited access</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <SubscriptionScreen />
+                        </HeroBackdrop>
+                    </main>
+                </div>
+            </div>
+        )
+    }
+
+    // Show full chat interface for subscribed users
     return (
-        <div className="m-4 min-h-screen bg-dark p-6 text-white">
-            <div className="max-w-6xl mx-auto flex gap-6">
-                <aside className="w-80 bg-gray-800/50 border-r border-gray-700 p-4 flex flex-col rounded-lg">
+        <div className="relative flex min-h-screen overflow-hidden bg-gradient-to-b from-background via-background to-background p-6 text-white">
+            {/* Decorative background matching dashboard hero */}
+            <div className="pointer-events-none absolute inset-0 -z-10">
+                <div className="absolute -top-24 -right-20 size-72 rounded-full bg-primary/20 blur-3xl" />
+                <div className="absolute -bottom-20 -left-24 size-72 rounded-full bg-purple-500/20 blur-3xl" />
+            </div>
+
+            <div className="w-full mx-auto flex gap-6">
+                <aside className="w-80 bg-black/20 border-r border-border/30 p-4 flex flex-col rounded-lg backdrop-blur">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold">Chat History</h2>
                     <Button 
@@ -315,7 +508,8 @@ export default function ChatPage() {
                 </div>
             </aside>
 
-            <main className="flex-1">
+                <main className="flex-1">
+                    <HeroBackdrop className="w-full">
                 <div className="flex items-center gap-4 mb-6">
                     <Button 
                         variant="outline" 
@@ -336,8 +530,8 @@ export default function ChatPage() {
                     </div>
                 </div>
 
-                <div className="max-w-4xl mx-auto w-full">
-                    <Card className="h-[75vh] flex flex-col bg-gray-800 border-gray-700 rounded-lg">
+                <div className="w-full">
+                    <Card className="h-[75vh] w-full flex flex-col bg-transparent border-0 rounded-lg">
                         <CardHeader className="flex-shrink-0">
                             <CardTitle className="flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5" />
@@ -353,12 +547,12 @@ export default function ChatPage() {
                                 )}
                                 {messages.map((m) => (
                                     <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
-                                            <div className={`${
+                                            <div className={`$${
                                                 m.role === 'user' 
                                                     ? 'bg-green-600 text-white' 
                                                     : m.role === 'system' 
-                                                    ? 'bg-gray-700 text-gray-200' 
-                                                    : 'bg-gray-700 text-gray-100'
+                                                    ? 'bg-black/30 text-gray-200' 
+                                                    : 'bg-black/40 text-gray-100'
                                             } px-4 py-3 rounded-lg shadow-sm max-w-[85%] break-words`}>
                                             <div className="prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden">
                                                 {renderMessageContent(m.text)}
@@ -400,6 +594,7 @@ export default function ChatPage() {
                         </CardContent>
                     </Card>
                 </div>
+                    </HeroBackdrop>
             </main>
             </div>
         </div>
