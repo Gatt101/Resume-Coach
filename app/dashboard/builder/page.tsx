@@ -2,7 +2,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Download, FileText, Wand2, Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react"
+import { ArrowLeft, Download, FileText, Wand2, Loader2, CheckCircle, Clock, AlertCircle, Github } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,6 +16,10 @@ import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import ManualResumeForm from "@/components/ManualResumeForm"
 import { Progress } from "@/components/ui/progress"
+import GitHubResumeModal from "@/components/GitHubResumeModal"
+import GitHubResumeButton from "@/components/GitHubResumeButton"
+
+import { ResumeIngestPayload } from "@/lib/services/github-resume-processor"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 
@@ -28,8 +32,9 @@ export default function BuilderPage() {
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState("create")
     const [showExamples, setShowExamples] = useState(false)
-    const [resumeSource, setResumeSource] = useState<'manual' | 'ai' | null>(null)
+    const [resumeSource, setResumeSource] = useState<'manual' | 'ai' | 'github' | null>(null)
     const [progress, setProgress] = useState(0)
+    const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false)
 
     const templates = [
         { value: "modern", label: "Modern", description: "Clean, contemporary design with gradient header" },
@@ -156,6 +161,35 @@ export default function BuilderPage() {
             console.error('Failed to auto-save manual resume:', saveError);
         }
     }
+
+    const handleGitHubSuccess = async (resumeData: ResumeIngestPayload, metadata: any) => {
+        console.log('GitHub Resume Generated:', resumeData, metadata);
+        
+        setResume(resumeData);
+        setResumeSource('github');
+        setIsGitHubModalOpen(false);
+        setActiveTab("preview");
+        
+        // Auto-save the GitHub-generated resume
+        try {
+            await fetch('/api/user/resume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    resume: resumeData, 
+                    template: selectedTemplate,
+                    metadata: metadata
+                }),
+            });
+            console.log('GitHub resume auto-saved to account');
+        } catch (saveError) {
+            console.error('Failed to auto-save GitHub resume:', saveError);
+        }
+    }
+
+
     
     const handleEditResume = () => {
         // Ensure the resume data is properly formatted for manual editing
@@ -497,10 +531,14 @@ export default function BuilderPage() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4 max-w-md mx-auto mb-8">
+                <TabsList className="grid w-full grid-cols-5 max-w-2xl mx-auto mb-8">
                     <TabsTrigger value="create" className="flex items-center gap-2">
                         <FileText className="w-4 h-4" />
                         AI Create
+                    </TabsTrigger>
+                    <TabsTrigger value="github" className="flex items-center gap-2">
+                        <Github className="w-4 h-4" />
+                        GitHub
                     </TabsTrigger>
                     <TabsTrigger value="manual" className="flex items-center gap-2">
                         <FileText className="w-4 h-4" />
@@ -632,12 +670,118 @@ export default function BuilderPage() {
                     </Card>
                 </TabsContent>
 
+                <TabsContent value="github" className="space-y-6">
+                    <Card className="max-w-4xl mx-auto">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Github className="w-5 h-5" />
+                                Build Resume from GitHub
+                            </CardTitle>
+                            <p className="text-gray-400">
+                                Generate a professional resume from your GitHub profile and repositories. 
+                                We'll analyze your code, projects, and contributions to create a tailored resume.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="text-center">
+                                <div className="mb-6">
+                                    <div className="inline-flex items-center gap-3 p-4 bg-gray-50 rounded-lg border">
+                                        <Github className="w-8 h-8 text-gray-600" />
+                                        <div className="text-left">
+                                            <h3 className="font-medium text-gray-900">Connect Your GitHub</h3>
+                                            <p className="text-sm text-gray-600">
+                                                We'll analyze your repositories, languages, and contributions
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                            <FileText className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-medium text-blue-900 mb-1">Smart Analysis</h4>
+                                        <p className="text-xs text-blue-700">
+                                            Analyzes your repositories, languages, and contribution patterns
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                            <Wand2 className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-medium text-green-900 mb-1">Auto-Generated</h4>
+                                        <p className="text-xs text-green-700">
+                                            Creates professional summaries and project descriptions
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                        <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                            <CheckCircle className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-medium text-purple-900 mb-1">Fully Editable</h4>
+                                        <p className="text-xs text-purple-700">
+                                            Review and customize everything before finalizing
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <GitHubResumeButton
+                                    onClick={() => setIsGitHubModalOpen(true)}
+                                    className="w-full max-w-md mx-auto h-12 text-lg bg-gray-900 hover:bg-gray-800 text-white"
+                                >
+                                    <Github className="w-5 h-5 mr-2" />
+                                    Connect GitHub Profile
+                                </GitHubResumeButton>
+
+                                <p className="text-xs text-gray-500 mt-4">
+                                    Your GitHub profile must be public for analysis. We don't store any tokens or personal data.
+                                </p>
+                            </div>
+
+                            <div className="border-t pt-6">
+                                <h4 className="font-medium text-gray-900 mb-3">What we'll analyze:</h4>
+                                <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Repository activity and stars
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Programming languages used
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Project descriptions and topics
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Contribution patterns
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Open source contributions
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        Technical skill categorization
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
                 <TabsContent value="manual" className="space-y-6">
                     <div className="text-center mb-8">
                         <h2 className="text-2xl font-bold text-white mb-2">Manual Resume Entry</h2>
                         <p className="text-gray-400">
                             {resumeSource === 'ai' ? 
                                 'Edit your AI-generated resume or fill in your details manually' : 
+                                resumeSource === 'github' ?
+                                'Edit your GitHub-generated resume or fill in your details manually' :
                                 'Fill in your details manually to create a professional resume'
                             }
                         </p>
@@ -645,6 +789,14 @@ export default function BuilderPage() {
                             <div className="mt-3 p-3 bg-blue-900/50 border border-blue-700 rounded-lg">
                                 <p className="text-blue-200 text-sm">
                                     ✨ Your AI-generated resume has been loaded below. You can edit any field and regenerate the preview.
+                                </p>
+                            </div>
+                        )}
+                        {resumeSource === 'github' && (
+                            <div className="mt-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+                                <p className="text-gray-200 text-sm">
+                                    <Github className="w-4 h-4 inline mr-1" />
+                                    Your GitHub-generated resume has been loaded below. You can edit any field and regenerate the preview.
                                 </p>
                             </div>
                         )}
@@ -761,6 +913,13 @@ export default function BuilderPage() {
                     )}
                 </TabsContent>
             </Tabs>
+
+            {/* GitHub Resume Modal */}
+            <GitHubResumeModal
+                isOpen={isGitHubModalOpen}
+                onClose={() => setIsGitHubModalOpen(false)}
+                onSuccess={handleGitHubSuccess}
+            />
         </div>
     )
 }

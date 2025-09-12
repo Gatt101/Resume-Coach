@@ -1,9 +1,15 @@
 import { inngest } from "@/inngest/client";
 import axios from "axios"
 import { NextResponse } from "next/server";
-
+import { auth } from '@clerk/nextjs/server'
 
 export async function POST(request: Request) {
+
+  const { has } = await auth()
+  const hasPremiumUser = has({plan : 'plus'})
+
+  if(!hasPremiumUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  
   const { userInput } = await request.json();
   const resultIds = await inngest.send
   ({
