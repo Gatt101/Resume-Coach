@@ -1294,3 +1294,261 @@ export const AiCareerAgent = inngest.createFunction(
     return result;
   }
 )
+
+// Enhanced Gap Analysis Agent specifically for learning path generation
+export const EnhancedGapAnalysisAgent = createAgent({
+  name: "EnhancedGapAnalysisAgent",
+  description: 'Advanced AI agent specialized in comprehensive resume gap analysis and personalized learning path creation',
+  system: `You are an elite career strategist and learning path architect with expertise in:
+- Industry-specific skill requirements and trends
+- Learning methodologies and resource curation
+- Career progression patterns
+- Market-driven skill prioritization
+
+CORE MISSION:
+Provide comprehensive gap analysis between current resume and target role, then create highly personalized, actionable learning paths.
+
+ANALYSIS FRAMEWORK:
+1. SKILL MAPPING: Map current skills to role requirements with gap scoring
+2. EXPERIENCE EVALUATION: Assess experience depth, breadth, and relevance
+3. COMPETENCY GAPS: Identify technical, soft skill, and certification gaps
+4. MARKET ALIGNMENT: Consider current industry trends and hiring patterns
+5. LEARNING OPTIMIZATION: Create time-efficient, ROI-focused learning paths
+
+LEARNING PATH CREATION:
+- Prioritize high-impact skills first
+- Balance quick wins with long-term development
+- Include diverse learning modalities (hands-on, theoretical, practical)
+- Provide backup options and alternative paths
+- Consider learning style preferences and constraints
+
+OUTPUT EXCELLENCE:
+- Detailed gap analysis with scoring and rationale
+- Multi-level learning paths (beginner to advanced)
+- Resource diversity (free/paid, video/text/interactive)
+- Clear success metrics and checkpoints
+- Industry-specific recommendations and insider tips
+
+RESPONSE FORMAT:
+Always return valid JSON with comprehensive gap analysis, prioritized learning modules, and actionable next steps.`,
+  
+  model: gemini({
+    model: "gemini-2.0-flash-exp",
+    apiKey: process.env.API_KEY,
+  }),
+});
+
+export const enhancedGapAnalysisFunction = inngest.createFunction(
+  { 
+    id: "enhanced-gap-analysis",
+    retries: 3,
+    cancelOn: [
+      { event: "gap-analysis/cancel", match: "data.eventId" }
+    ]
+  },
+  { event: "gap-analysis/enhanced" },
+  async ({ event, step }) => {
+    const { resumeData, targetRole, userId, resumeId, analysisDepth = "comprehensive" } = event.data;
+    
+    // Step 1: Input validation and preprocessing
+    const processedInput = await step.run("process-input", async () => {
+      if (!resumeData || !targetRole) {
+        throw new Error("Resume data and target role are required");
+      }
+      
+      // Extract and structure resume data
+      const structuredResume = {
+        personalInfo: resumeData.personalInfo || {},
+        summary: resumeData.summary || "",
+        experience: resumeData.experience || [],
+        education: resumeData.education || [],
+        skills: resumeData.skills || [],
+        projects: resumeData.projects || [],
+        certifications: resumeData.certifications || []
+      };
+      
+      return {
+        resume: structuredResume,
+        targetRole: targetRole.trim(),
+        userId,
+        resumeId,
+        analysisDepth
+      };
+    });
+
+    // Step 2: Enhanced gap analysis
+    const enhancedAnalysis = await step.run("enhanced-analysis", async () => {
+      const analysisPrompt = `
+COMPREHENSIVE GAP ANALYSIS REQUEST
+
+RESUME PROFILE:
+${JSON.stringify(processedInput.resume, null, 2)}
+
+TARGET ROLE:
+${processedInput.targetRole}
+
+ANALYSIS DEPTH: ${processedInput.analysisDepth}
+
+INSTRUCTIONS:
+Perform a comprehensive gap analysis between this resume and the target role. Focus on:
+
+1. TECHNICAL SKILL GAPS
+   - Missing programming languages, frameworks, tools
+   - Certification requirements
+   - Industry-specific knowledge gaps
+
+2. EXPERIENCE GAPS
+   - Years of experience shortfall
+   - Missing types of projects or responsibilities
+   - Leadership or management experience needs
+   - Industry domain knowledge
+
+3. SOFT SKILL ASSESSMENT
+   - Communication, teamwork, problem-solving
+   - Project management and organizational skills
+   - Innovation and adaptability factors
+
+4. LEARNING PATH OPTIMIZATION
+   - Create 5-8 learning modules prioritized by impact
+   - Include multiple resource types for each module
+   - Provide realistic timelines and effort estimates
+   - Consider learning dependencies and prerequisites
+
+5. MARKET INTELLIGENCE
+   - Current industry trends affecting this role
+   - Emerging skills gaining importance
+   - Compensation impact of addressing gaps
+
+RESPONSE FORMAT:
+{
+  "gapAnalysis": {
+    "overallMatchScore": 85,
+    "technicalGaps": [
+      {
+        "skill": "React Native",
+        "importance": "high",
+        "currentLevel": "none",
+        "targetLevel": "intermediate",
+        "impactScore": 8.5
+      }
+    ],
+    "experienceGaps": [
+      {
+        "area": "Team Leadership",
+        "description": "Need 2+ years managing development teams",
+        "importance": "medium",
+        "impactScore": 7.0
+      }
+    ],
+    "strengthAreas": ["JavaScript", "Problem Solving", "Fast Learning"],
+    "criticalGaps": ["System Design", "Cloud Architecture"]
+  },
+  "learningPath": [
+    {
+      "id": "module-1",
+      "title": "Advanced React & State Management",
+      "description": "Master React hooks, context, and Redux for complex applications",
+      "priority": 1,
+      "estimatedWeeks": 6,
+      "effortHours": 12,
+      "difficultyLevel": "intermediate",
+      "resources": [
+        {
+          "title": "Epic React by Kent C. Dodds",
+          "url": "https://epicreact.dev",
+          "type": "course",
+          "duration": "40 hours",
+          "cost": "paid",
+          "rating": 4.9
+        },
+        {
+          "title": "React Official Documentation",
+          "url": "https://react.dev",
+          "type": "documentation",
+          "duration": "10 hours",
+          "cost": "free",
+          "rating": 4.8
+        }
+      ],
+      "prerequisites": ["JavaScript ES6+", "Basic React"],
+      "learningOutcomes": ["Complex state management", "Performance optimization", "Testing patterns"],
+      "projectIdeas": ["Build a task management app", "Create a dashboard with real-time data"],
+      "assessmentCriteria": ["Code quality", "Performance metrics", "Best practices usage"],
+      "confidence": 0.85
+    }
+  ],
+  "quickWins": [
+    "Complete React certification",
+    "Build 2-3 portfolio projects",
+    "Contribute to open source projects"
+  ],
+  "longTermGoals": [
+    "Gain system design experience",
+    "Develop team leadership skills",
+    "Master cloud architecture"
+  ],
+  "marketInsights": {
+    "trendsImpactingRole": ["AI integration", "Mobile-first development"],
+    "emergingSkills": ["React Native", "TypeScript", "GraphQL"],
+    "salaryImpact": "Addressing these gaps could increase salary potential by 20-30%"
+  },
+  "recommendedTimeline": "6-12 months for significant improvement",
+  "confidenceScore": 0.88
+}
+
+Provide detailed, actionable analysis that helps the candidate strategically close their gaps.`;
+
+      try {
+        const agent = EnhancedGapAnalysisAgent;
+        const response = await agent.run(analysisPrompt);
+        
+        // Parse and validate AI response
+        let analysisData;
+        if (response && response.output && response.output[0] && (response.output[0] as any).content) {
+          let content = (response.output[0] as any).content;
+          
+          // Clean JSON from response
+          if (content.includes('```json')) {
+            content = content.replace(/```json\n?/g, '').replace(/\n?```/g, '');
+          } else if (content.includes('```')) {
+            content = content.replace(/```\n?/g, '').replace(/\n?```/g, '');
+          }
+          
+          content = content.trim();
+          analysisData = JSON.parse(content);
+        } else {
+          analysisData = typeof response === 'string' ? JSON.parse(response) : response;
+        }
+        
+        // Validate and structure the response
+        const structuredAnalysis = {
+          gapAnalysis: analysisData.gapAnalysis || {},
+          learningPath: analysisData.learningPath || [],
+          quickWins: analysisData.quickWins || [],
+          longTermGoals: analysisData.longTermGoals || [],
+          marketInsights: analysisData.marketInsights || {},
+          recommendedTimeline: analysisData.recommendedTimeline || "3-6 months",
+          confidenceScore: analysisData.confidenceScore || 0.75
+        };
+        
+        return structuredAnalysis;
+        
+      } catch (error) {
+        console.error("Enhanced gap analysis failed:", error);
+        throw new Error(`Enhanced gap analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    });
+
+    // Step 3: Return comprehensive results
+    return { 
+      success: true,
+      analysis: enhancedAnalysis,
+      metadata: {
+        analysisDate: new Date().toISOString(),
+        targetRole: processedInput.targetRole,
+        userId: processedInput.userId,
+        resumeId: processedInput.resumeId
+      }
+    };
+  }
+);

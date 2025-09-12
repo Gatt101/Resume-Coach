@@ -7,6 +7,11 @@ export async function POST(req: NextRequest) {
     try 
     {
     const { userId } = await auth();
+    const { has } = await auth()
+  const hasPremiumUser = has({plan : 'plus'})
+
+  if(!hasPremiumUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  
         
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

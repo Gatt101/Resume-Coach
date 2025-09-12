@@ -13,6 +13,7 @@ interface UserData {
   lastName?: string;
   imageUrl?: string;
   clerkRaw?: any;
+  plan?: string;
 }
 
 export async function CreateUser(userData: UserData) {

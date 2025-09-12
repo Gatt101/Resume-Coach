@@ -223,13 +223,13 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="min-h-screen bg-dark p-6">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="min-h-screen p-6 text-white bg-gradient-to-br from-[#0b0714] via-[#2b123b] to-[#121223]">
+        <div className="flex items-center gap-4 mb-6">
         <Button 
           variant="outline" 
           size="icon" 
           onClick={() => router.push('/dashboard')}
-          className="hover:bg-gray-200 transition-colors"
+          className="hover:bg-white/5 transition-colors border-border/30 text-white"
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
@@ -238,7 +238,7 @@ export default function AnalyzePage() {
             <BarChart3 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">Resume Analyzer</h1>
+            <h1 className="text-3xl font-bold">Resume Analyzer</h1>
             <p className="text-gray-400">ATS optimization and gap analysis for your resume</p>
           </div>
         </div>
@@ -258,20 +258,20 @@ export default function AnalyzePage() {
           </TabsList>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <p className="text-red-600">{error}</p>
+            <div className="mb-6 p-4 bg-red-900/30 border border-red-800/60 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              <p className="text-red-300">{error}</p>
             </div>
           )}
 
           <TabsContent value="select" className="space-y-6">
-            <Card>
+            <Card className="bg-black/30 border-border/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5" />
                   Choose a Resume to Analyze
                 </CardTitle>
-                <p className="text-gray-600">
+                <p className="text-gray-400">
                   Select a resume to get instant ATS score and improvement recommendations
                 </p>
               </CardHeader>
@@ -298,7 +298,7 @@ export default function AnalyzePage() {
                       ) : (
                         <>
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-medium text-gray-800">Your Resumes</h3>
+                            <h3 className="text-lg font-medium text-gray-200">Your Resumes</h3>
                             {resumes.length > VISIBLE_COUNT && (
                               <div className="flex items-center gap-2">
                                 <span className="text-sm text-gray-500">Showing {showAll ? resumes.length : VISIBLE_COUNT} of {resumes.length}</span>
@@ -317,25 +317,25 @@ export default function AnalyzePage() {
                               return (
                                 <div
                                   key={resumeId}
-                                  className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                                  className={`p-4 rounded-lg cursor-pointer transition-all ${
                                     isSelected
-                                      ? 'border-green-500 bg-green-50'
-                                      : 'border-gray-200 hover:border-gray-300'
+                                      ? 'border border-green-500 bg-gradient-to-r from-green-900/30 to-transparent shadow-md'
+                                      : 'border border-border/20 hover:border-border/30 bg-transparent hover:shadow-sm'
                                   }`}
                                   onClick={() => !isAnalyzing && handleResumeSelect(resume)}
                                 >
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                      <h3 className="font-semibold text-gray-900">{resume.title}</h3>
+                                      <h3 className="font-semibold text-white">{resume.title}</h3>
                                       {resume.isLocal && (
-                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-900/30 text-blue-300 mt-1">
                                           Local Resume
                                         </span>
                                       )}
-                                      <p className="text-sm text-gray-600 mt-1">
+                                      <p className="text-sm text-gray-400 mt-1">
                                         Template: {resume.template || 'Modern'}
                                       </p>
-                                      <p className="text-xs text-gray-500 mt-2">
+                                      <p className="text-xs text-gray-400 mt-2">
                                         Updated: {new Date(resume.updatedAt ?? Date.now()).toLocaleDateString()}
                                       </p>
                                     </div>
@@ -386,18 +386,18 @@ export default function AnalyzePage() {
 
                     {/* Right: Upload Resume Card */}
                     <div className="w-full lg:w-1/2">
-                      <Card>
+                      <Card className="bg-black/20 border-border/20">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2">
                             <Upload className="w-5 h-5" />
                             Upload Resume (OCR)
                           </CardTitle>
-                          <p className="text-gray-600">Upload a PDF/DOCX to run OCR and parsing, then analyze it.</p>
+                          <p className="text-gray-400">Upload a PDF/DOCX to run OCR and parsing, then analyze it.</p>
                         </CardHeader>
                         <CardContent>
                           <div
                             className={`m-4 text-center py-8 border-dashed border-2 ${
-                              dragOver ? "border-green-500 bg-green-50" : "border-gray-200"
+                              dragOver ? "border-green-500 bg-green-900/20" : "border-border/20 bg-transparent"
                             } rounded-lg`}
                             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                             onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
@@ -468,13 +468,13 @@ export default function AnalyzePage() {
 
                 <div className="grid gap-6 lg:grid-cols-3">
                   <div className="lg:col-span-2 space-y-6">
-                    {/* Big Score Card */}
-                    <Card className="bg-gradient-to-r from-gray-800 via-gray-900 to-black border-0">
+                    {/* Big Score Card (dashboard palette) */}
+                    <Card className="bg-gradient-to-br from-[#0b0714] via-[#2b123b] to-[#121223] border-0">
                       <CardContent className="p-8 text-center">
                         <p className="text-sm text-gray-400 uppercase">ATS Score</p>
                         <p className={`text-6xl font-extrabold mt-2 ${getScoreColor(analysisResult.atsScore)}`}>{analysisResult.atsScore}<span className="text-2xl ml-2 text-gray-400">/100</span></p>
                         <div className="mt-6">
-                          <Progress value={analysisResult.atsScore} className="h-3 rounded-full" />
+                          <Progress value={analysisResult.atsScore} className="h-3 rounded-full bg-gradient-to-r from-green-500 via-primary to-amber-400" />
                         </div>
                         <p className="text-sm text-gray-400 mt-3">This score is a quick estimate of how well your resume performs against typical ATS checks.</p>
                       </CardContent>
