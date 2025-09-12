@@ -1,9 +1,9 @@
-import type React from "react"
 import "@/app/globals.css"
-import { Inter, Source_Sans_3 } from "next/font/google"
-import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from '@clerk/nextjs'
+import type { Metadata } from "next"
+import { Inter, Source_Sans_3 } from "next/font/google"
+import type React from "react"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -18,7 +18,7 @@ const sourceSans = Source_Sans_3({
 })
 
 export const metadata: Metadata = {
-  title: "AI Resume Coach - Smarter Resumes. Stronger Careers.",
+  title: "NexCV Coach - Smarter Resumes. Stronger Careers.",
   description:
     "Upload your resume, paste a job description, and let AI optimize your CV, close your skill gaps, and craft a growth path tailored for you.",
     generator: 'v0.app'

@@ -1,32 +1,33 @@
 "use client"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { motion } from "framer-motion"
-import {
-  Check,
-  ChevronRight,
-  Menu,
-  X,
-  Moon,
-  Sun,
-  ArrowRight,
-  Upload,
-  FileText,
-  Target,
-  TrendingUp,
-  BarChart3,
-  Shield,
-  Brain,
-  BookOpen,
-  Eye,
-  Router,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+import HeroScrollDemo from "@/components/container-scroll-animation-demo"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { NavbarDemo } from "@/components/ui/MarketingNavbar"
+import { motion } from "framer-motion"
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  Brain,
+  Check,
+  ChevronRight,
+  Eye,
+  FileText,
+  Menu,
+  Moon,
+  Shield,
+  Sun,
+  Target,
+  TrendingUp,
+  Upload,
+  X
+} from "lucide-react"
 import { useTheme } from "next-themes"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 export default function LandingPage() {
   const router = useRouter()
@@ -115,6 +116,9 @@ export default function LandingPage() {
 
   return (
     <div className="flex min-h-[100dvh]">
+      <div className="fixed inset-x-0 top-0 z-40">
+        <NavbarDemo />
+      </div>
       <aside
         className={`fixed top-0 left-0 bottom-0 w-64 bg-sidebar-background transition-transform ${
           sidebarCollapsed ? "-translate-x-full" : "translate-x-0"
@@ -125,7 +129,7 @@ export default function LandingPage() {
             {sidebarCollapsed ? <Menu className="size-5" /> : <X className="size-5" />}
             <span className="sr-only">Toggle sidebar</span>
           </Button>
-          {!sidebarCollapsed && <span className="font-sans font-bold text-sidebar-foreground">AI Resume Coach</span>}
+          {!sidebarCollapsed && <span className="font-sans font-bold text-sidebar-foreground">NexCV Coach</span>}
         </div>
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
@@ -148,16 +152,16 @@ export default function LandingPage() {
           </ul>
         </nav>
       </aside>
-      <main className="flex-1">
+      <main className="flex-1 pt-20">
         <header
-          className={`sticky top-0 z-50 w-full backdrop-blur-lg transition-all duration-300 ${isScrolled ? "bg-background/80 shadow-sm" : "bg-transparent"}`}
+          className={`sticky top-0 z-50 w-full backdrop-blur-lg transition-all duration-300 ${isScrolled ? "bg-background/80 shadow-sm" : "bg-transparent"} hidden`}
         >
           <div className="container flex h-16 items-center justify-between">
             <div className="flex items-center gap-2 font-bold">
               <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground">
                 <Brain className="size-4" />
               </div>
-              <span className="text-xl font-sans">AI Resume Coach</span>
+              <span className="text-xl font-sans">NexCV Coach</span>
             </div>
             <nav className="hidden md:flex gap-8">
               <Link
@@ -246,14 +250,17 @@ export default function LandingPage() {
           )}
         </header>
         <main className="flex-1">
-          {/* Hero Section */}
-          <section className="w-full py-16 md:py-20 lg:py-24 xl:py-32 relative overflow-hidden">
+          {/* Hero Section with Scroll Animation */}
+          <section className="w-full relative overflow-hidden">
             <div className="absolute inset-0 -z-10 h-full w-full bg-white dark:bg-black bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1f1f1f_1px,transparent_1px),linear-gradient(to_bottom,#1f1f1f_1px,transparent_1px)] bg-[size:6rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
 
-            <div className="container px-4 md:px-6 relative max-w-5xl mx-auto">
+            <HeroScrollDemo />
+
+            {/* CTA Section */}
+            <div className="container px-4 md:px-6 relative max-w-5xl mx-auto pb-16 -mt-32">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
                 className="flex flex-col items-center justify-center space-y-6 text-center"
               >
@@ -263,10 +270,6 @@ export default function LandingPage() {
                 >
                   AI-Powered Career Assistant
                 </Badge>
-
-                <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-sans font-bold tracking-tight text-balance max-w-4xl">
-                  Smarter Resumes. <span className="text-foreground">Stronger Careers.</span>
-                </h1>
 
                 <p className="max-w-2xl text-muted-foreground md:text-lg lg:text-xl text-pretty leading-relaxed">
                   Upload your resume, paste a job description, and let AI optimize your CV, close your skill gaps, and
@@ -784,7 +787,7 @@ export default function LandingPage() {
                   <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground">
                     <Brain className="size-4" />
                   </div>
-                  <span className="font-sans">AI Resume Coach</span>
+                  <span className="font-sans">NexCV Coach</span>
                 </div>
                 <p className="text-sm text-muted-foreground text-pretty">
                   AI-powered resume optimization and career coaching to help you land your dream job faster.
@@ -863,7 +866,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col gap-4 sm:flex-row justify-between items-center border-t border-border/40 pt-8">
               <p className="text-xs text-muted-foreground">
-                &copy; {new Date().getFullYear()} AI Resume Coach. All rights reserved.
+                &copy; {new Date().getFullYear()} NexCV Coach. All rights reserved.
               </p>
               <div className="flex gap-4">
                 <Link href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
