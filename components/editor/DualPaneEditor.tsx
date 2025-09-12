@@ -39,7 +39,7 @@ export function DualPaneEditor({
   readOnly = false,
   confidence = 1.0
 }: DualPaneEditorProps) {
-  const [leftPaneWidth, setLeftPaneWidth] = useState(50); // Percentage
+  const [leftPaneWidth, setLeftPaneWidth] = useState(60); // Percentage - increased for better PDF preview
   const [isResizing, setIsResizing] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
   const [currentText, setCurrentText] = useState(extractedText);

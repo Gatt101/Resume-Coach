@@ -30,7 +30,7 @@ export function DocumentViewer({
   highlightRegions = [],
   onRegionClick 
 }: DocumentViewerProps) {
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(125); // Start with larger zoom for better readability
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showHighlights, setShowHighlights] = useState(true);
@@ -41,9 +41,9 @@ export function DocumentViewer({
   const isDoc = document.type.includes('word') || document.type.includes('document');
 
   // Handle zoom
-  const handleZoomIn = () => setZoom(prev => Math.min(200, prev + 25));
+  const handleZoomIn = () => setZoom(prev => Math.min(250, prev + 25));
   const handleZoomOut = () => setZoom(prev => Math.max(50, prev - 25));
-  const handleResetZoom = () => setZoom(100);
+  const handleResetZoom = () => setZoom(125);
 
   // Handle rotation
   const handleRotate = () => setRotation(prev => (prev + 90) % 360);
@@ -87,11 +87,12 @@ export function DocumentViewer({
           src={document.base64}
           type="application/pdf"
           width="100%"
-          height="100%"
-          className="rounded border"
+          height="600px"
+          className="rounded border shadow-lg"
           style={{
             transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
-            transformOrigin: 'center center'
+            transformOrigin: 'center center',
+            minHeight: '600px'
           }}
         />
         
