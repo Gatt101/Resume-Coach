@@ -368,12 +368,7 @@ export default function DashboardPage() {
             {/* make cards larger and force equal heights */}
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 items-stretch">
               {quickActions.map((qa, i) => (
-                <motion.div
-                  key={qa.title}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.25 }}
-                >
+                <div key={qa.title}>
                   <Card
                     onClick={() => router.push(qa.href)}
                     className="group cursor-pointer overflow-hidden border bg-card/70 backdrop-blur transition-all hover:shadow-lg h-36"
@@ -381,17 +376,17 @@ export default function DashboardPage() {
                     {/* ensure content fills the card and is centered */}
                     <CardContent className="p-6 h-full flex items-center">
                       <div className="flex items-center gap-6 w-full">
-                        <div className="grid size-14 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10 transition transform group-hover:scale-105">
+                        <div className="grid size-14 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10">
                           <qa.icon className="size-6 text-primary" />
                         </div>
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold leading-tight">{qa.title}</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">{qa.description}</p>
+                          <p suppressHydrationWarning className="mt-1 text-sm text-muted-foreground">{qa.description}</p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
               ))}
             </div>
           </section>
