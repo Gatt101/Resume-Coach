@@ -719,7 +719,7 @@ export default function TailorPage() {
               {/* Enhanced Analysis Results */}
               <AnimatePresence>
                 {aiAnalysis && (
-                  <motion.div
+                  <motion.div key={`ai-analysis-${aiAnalysis.provider}-${aiAnalysis.overallScore}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
@@ -754,7 +754,7 @@ export default function TailorPage() {
                 )}
 
                 {jobAnalysis && compatibilityScore && (
-                  <motion.div
+                  <motion.div key={`job-analysis-${compatibilityScore.overall}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}

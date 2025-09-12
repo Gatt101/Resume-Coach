@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { UserButton, useUser } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import {
@@ -159,7 +160,12 @@ export default function DashboardPage() {
       try {
         setResumesLoading(true)
         const res = await fetch('/api/user/resume')
-        if (!res.ok) throw new Error('Failed to fetch')
+        if (res.status === 401) {
+          // Not authenticated; show empty state without throwing
+          if (mounted) setUserResumes([])
+          return
+        }
+        if (!res.ok) throw new Error(`Failed to fetch resumes (${res.status})`)
         const data = await res.json()
         if (mounted && data?.resumes) setUserResumes(data.resumes)
       } catch (err) {
@@ -179,9 +185,14 @@ export default function DashboardPage() {
     async function loadGuided() {
       try {
         setGuidedLoading(true)
-        const firstId = userResumes[0]._id
+        const first = userResumes[0]
+        const firstId = (first && (first._id || first.id))
+        if (!firstId) return
         const res = await fetch(`/api/resume/guided?resumeId=${firstId}&max=8`)
-        if (!res.ok) throw new Error('failed')
+        if (!res.ok) {
+          console.warn('Guided path request failed', res.status)
+          return
+        }
         const data = await res.json()
         if (mounted && data?.guidedPath) setGuidedPath(data.guidedPath)
       } catch (err) {
@@ -196,6 +207,23 @@ export default function DashboardPage() {
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-gradient-to-b from-background via-background to-background">
+      {/* Top-left back button, fixed and offset from sidebar */}
+      <div
+        className="pointer-events-none fixed top-4 z-30"
+        style={{ left: railOpen ? 260 : 72 }}
+      >
+        <div className="pointer-events-auto">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/')}
+            className="h-8 w-8 rounded-full bg-black/20 hover:bg-black/30 border border-white/10 text-foreground"
+            title="Back to Home"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+        </div>
+      </div>
       {/* Decorative background */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-24 -left-24 size-[420px] rounded-full bg-primary/10 blur-3xl" />
@@ -207,23 +235,14 @@ export default function DashboardPage() {
         onMouseEnter={() => setRailOpen(true)}
         onMouseLeave={() => setRailOpen(false)}
         style={{ willChange: 'width' }}
-        className={`group sticky left-0 top-0 z-20 flex h-dvh flex-col border-r bg-black/20 backdrop-blur supports-[backdrop-filter]:bg-black/10 transition-[width] duration-300 ease-in-out ${railOpen ? "w-60" : "w-16"}`}
+        className={`group sticky left-0 top-0 z-20 flex h-dvh flex-col border-r border-white/10 bg-black/25 backdrop-blur supports-[backdrop-filter]:bg-black/10 transition-[width] duration-300 ease-in-out ${railOpen ? "w-60" : "w-16"}`}
       >
-        <div className="flex items-center gap-2 border-b px-3 py-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push('/')}
-            className={`shrink-0 hover:bg-white/5 transition-colors ${!railOpen ? "w-8 h-8" : ""}`}
-            title="Back to Home"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 text-primary-foreground grid place-items-center">
+        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-3">
+          <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 text-primary-foreground grid place-items-center shadow-sm">
             <Target className="size-4" />
           </div>
           <span className={`font-semibold text-sm text-foreground transition-all duration-300 ease-in-out transform ${railOpen ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2"}`}>
-            AI Resume Coach
+            NexCV Coach
           </span>
         </div>
 
@@ -232,16 +251,43 @@ export default function DashboardPage() {
             {sidebarItems.map((item) => {
               const isActive = pathname === item.href
               return (
-                <li key={item.label}>
-                  <Button
-                    variant={isActive ? "default" : "ghost"}
-                    className={`w-full justify-start transition-all duration-200 ease-in-out ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"} ${railOpen ? "px-3" : "px-2"} `}
-                    size={railOpen ? "default" : "icon"}
-                    onClick={() => router.push(item.href)}
-                  >
-                    <item.icon className="size-4" />
-                    {railOpen && <span className="ml-2">{item.label}</span>}
-                  </Button>
+                <li key={item.label} className="relative">
+                  {railOpen ? (
+                    <Button
+                      variant={isActive ? "default" : "ghost"}
+                      className={`group relative w-full justify-start rounded-lg transition-all duration-200 ease-in-out ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5 hover:ring-1 hover:ring-white/10"} ${railOpen ? "px-3" : "px-2"}`}
+                      size={railOpen ? "default" : "icon"}
+                      onClick={() => router.push(item.href)}
+                    >
+                      <span aria-hidden className={`absolute left-0 top-0 h-full w-1 rounded-r transition-colors ${isActive ? "bg-white/90" : "bg-transparent group-hover:bg-white/20"}`} />
+                      <motion.span whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="shrink-0">
+                        <item.icon className="size-4" />
+                      </motion.span>
+                      {railOpen && <span className="ml-2">{item.label}</span>}
+                    </Button>
+                  ) : (
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={isActive ? "default" : "ghost"}
+                            className={`group relative w-full justify-center rounded-lg transition-all duration-200 ease-in-out ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5 hover:ring-1 hover:ring-white/10"} px-2`}
+                            size="icon"
+                            onClick={() => router.push(item.href)}
+                            aria-label={item.label}
+                          >
+                            <span aria-hidden className={`absolute left-0 top-0 h-full w-1 rounded-r transition-colors ${isActive ? "bg-white/90" : "bg-transparent group-hover:bg-white/20"}`} />
+                            <motion.span whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="shrink-0">
+                              <item.icon className="size-4" />
+                            </motion.span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-foreground">
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </li>
               )
             })}

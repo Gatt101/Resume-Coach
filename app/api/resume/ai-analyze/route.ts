@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ai-resume-coach.com',
-        'X-Title': 'AI Resume Coach',
+        'HTTP-Referer': 'https://nexcv-coach.com',
+        'X-Title': 'NexCV Coach',
       },
       body: JSON.stringify(requestBody)
     });

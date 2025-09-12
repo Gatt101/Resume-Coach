@@ -1,6 +1,6 @@
-# AI Resume Coach
+# NexCV Coach
 
-AI Resume Coach is a Next.js application that helps users build and improve resumes with AI-powered suggestions, OCR processing, multi-template support, and intelligent job-specific tailoring.
+NexCV Coach is a Next.js application that helps users build and improve resumes with AI-powered suggestions, OCR processing, multi-template support, and intelligent job-specific tailoring.
 
 ## Features
 
