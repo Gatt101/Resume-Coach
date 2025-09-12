@@ -111,8 +111,8 @@ export function TemplatePreview({ template, isSelected, onClick }: TemplatePrevi
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-lg">{templateData.title}</h3>
-            <p className="text-sm text-gray-600">{templateData.description}</p>
+            <h3 className="font-semibold text-base sm:text-lg">{templateData.title}</h3>
+            <p className="text-sm sm:text-base text-gray-600">{templateData.description}</p>
           </div>
           {isSelected && (
             <CheckCircle2 className="w-5 h-5 text-blue-500 mt-1" />
@@ -120,8 +120,10 @@ export function TemplatePreview({ template, isSelected, onClick }: TemplatePrevi
         </div>
         
         <div className="border rounded-lg p-2 bg-gray-50">
-          <div className="transform scale-75 origin-top-left w-full">
-            {templateData.preview}
+          <div className="w-full">
+            <div className="transform origin-top-left scale-90 sm:scale-75 md:scale-75 lg:scale-75 w-full">
+              {templateData.preview}
+            </div>
           </div>
         </div>
         

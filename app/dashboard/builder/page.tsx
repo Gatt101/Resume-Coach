@@ -509,7 +509,7 @@ export default function BuilderPage() {
 
     // Rest of the component remains unchanged
     return (
-        <div className="min-h-screen bg-dark p-6">
+        <div className="min-h-screen bg-dark p-4 sm:p-6">
             <div className="flex items-center gap-4 mb-6">
                 <Button 
                     variant="outline" 
@@ -524,14 +524,14 @@ export default function BuilderPage() {
                         <Wand2 className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-white">AI Resume Builder</h1>
-                        <p className="text-gray-400">Create professional resumes with AI assistance</p>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-white">AI Resume Builder</h1>
+                        <p className="text-sm sm:text-base text-gray-400">Create professional resumes with AI assistance</p>
                     </div>
                 </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 max-w-2xl mx-auto mb-8">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 max-w-2xl mx-auto gap-2 mb-6 sm:mb-8">
                     <TabsTrigger value="create" className="flex items-center gap-2">
                         <FileText className="w-4 h-4" />
                         AI Create
@@ -560,7 +560,7 @@ export default function BuilderPage() {
                 </TabsList>
 
                 <TabsContent value="create" className="space-y-6">
-                    <Card className="max-w-4xl mx-auto">
+                    <Card className="w-full max-w-4xl mx-auto">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <FileText className="w-5 h-5" />
@@ -577,7 +577,7 @@ export default function BuilderPage() {
                                 </label>
                                 <Textarea
                                     placeholder="Example: Software engineer with 5 years of experience in React, Node.js, and Python. Passionate about building scalable web applications and leading development teams. Looking for a senior developer role at a tech company focused on innovation..."
-                                    className="w-full min-h-[200px] resize-none"
+                                    className="w-full min-h-[140px] sm:min-h-[200px] resize-none"
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                 />
@@ -587,7 +587,7 @@ export default function BuilderPage() {
                             </div>
 
                             <Collapsible open={showExamples} onOpenChange={setShowExamples}>
-                                <CollapsibleTrigger className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                <CollapsibleTrigger className="text-sm text-blue-50 hover:text-blue-800 font-medium">
                                     {showExamples ? 'Hide' : 'Show'} example prompts →
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="mt-3">
@@ -599,19 +599,19 @@ export default function BuilderPage() {
                             </Collapsible>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-500 mb-3">
+                                <label className="block text-sm font-medium text-gray-300 mb-3">
                                     Quick Template Preview
                                 </label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                                     {templates.map((template) => (
                                         <div
                                             key={template.value}
                                             className={`p-3 border rounded-lg cursor-pointer transition-all ${
                                                 selectedTemplate === template.value
-                                                    ? 'border-blue-500 bg-blue-300/10'
+                                                    ? 'border-blue-500 bg-blue-500/10'
                                                     : 'border-gray-200 hover:border-gray-300'
                                             }`} onClick={() => setSelectedTemplate(template.value)}>
-                                            <h4 className="font-medium text-sm">{template.label}</h4>
+                                            <h4 className="font-medium text-sm ">{template.label}</h4>
                                             <p className="text-xs text-gray-600 mt-1">{template.description}</p>
                                             {selectedTemplate === template.value && (
                                                 <Badge className="mt-2 text-xs bg-blue-500">Selected</Badge>
@@ -624,7 +624,7 @@ export default function BuilderPage() {
                             <Button
                                 onClick={handleGenerateResume}
                                 disabled={isLoading || !description.trim() || description.length < 50}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg"
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base sm:text-lg"
                             >
                                 {isLoading ? (
                                     <>
@@ -640,7 +640,7 @@ export default function BuilderPage() {
                             </Button>
 
                             {isLoading && (
-                                <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="space-y-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm font-medium text-blue-900">
                                             Creating your professional resume...
@@ -696,7 +696,7 @@ export default function BuilderPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                                         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                             <FileText className="w-4 h-4 text-white" />
@@ -730,7 +730,7 @@ export default function BuilderPage() {
 
                                 <GitHubResumeButton
                                     onClick={() => setIsGitHubModalOpen(true)}
-                                    className="w-full max-w-md mx-auto h-12 text-lg bg-gray-900 hover:bg-gray-800 text-white"
+                                    className="w-full max-w-md mx-auto h-12 text-base sm:text-lg bg-gray-900 hover:bg-gray-800 text-white"
                                 >
                                     <Github className="w-5 h-5 mr-2" />
                                     Connect GitHub Profile
@@ -775,7 +775,7 @@ export default function BuilderPage() {
                 </TabsContent>
 
                 <TabsContent value="manual" className="space-y-6">
-                    <div className="text-center mb-8">
+                    <div className="text-center mb-6 sm:mb-8">
                         <h2 className="text-2xl font-bold text-white mb-2">Manual Resume Entry</h2>
                         <p className="text-gray-400">
                             {resumeSource === 'ai' ? 
@@ -802,7 +802,7 @@ export default function BuilderPage() {
                         )}
                     </div>
 
-                    <div className=" rounded-lg shadow-lg p-6">
+                    <div className=" rounded-lg shadow-lg p-4 sm:p-6">
                         <ManualResumeForm 
                             onSubmit={handleManualSubmit}
                             onCancel={() => setActiveTab("create")}
@@ -817,7 +817,7 @@ export default function BuilderPage() {
                         <p className="text-gray-600">Select a design that best represents your professional style</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto px-2 sm:px-0">
                         {templates.map((template) => (
                             <TemplatePreview
                                 key={template.value}
@@ -828,7 +828,7 @@ export default function BuilderPage() {
                         ))}
                     </div>
 
-                    <div className="flex justify-center mt-8">
+                    <div className="flex flex-col sm:flex-row justify-center mt-6 sm:mt-8 gap-3">
                         <Button
                             onClick={() => setActiveTab("create")}
                             variant="outline"
@@ -849,9 +849,9 @@ export default function BuilderPage() {
                 <TabsContent value="preview" className="space-y-6">
                     {resume ? (
                         <>
-                            <div className="flex justify-between items-center max-w-4xl mx-auto">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center max-w-4xl mx-auto gap-4">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-white/120">Your Resume </h2>
+                                    <h2 className="text-xl sm:text-2xl font-bold text-white/120">Your Resume </h2>
                                     <div className="flex items-center gap-2 text-gray-600">
                                         <span>Template: {templates.find(t => t.value === selectedTemplate)?.label}</span>
                                     </div>
@@ -897,8 +897,10 @@ export default function BuilderPage() {
                                 </div>
                             </div>
 
-                            <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden" data-resume-preview>
-                                {renderResumeTemplate()}
+                            <div className="w-full px-2 sm:px-0">
+                                <div className="mx-auto bg-white rounded-lg shadow-lg overflow-hidden w-full max-w-4xl" data-resume-preview>
+                                    {renderResumeTemplate()}
+                                </div>
                             </div>
                         </>
                     ) : (

@@ -51,7 +51,7 @@ export function ExamplePrompts({ onSelectPrompt }: ExamplePromptsProps) {
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h4 className="font-semibold text-gray-900">{example.title}</h4>
+                  <h4 className="font-semibold text-gray-50">{example.title}</h4>
                   <p className="text-sm text-gray-600">{example.description}</p>
                 </div>
                 <div className="flex flex-wrap gap-1">
