@@ -1,45 +1,45 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Loader2, 
-  FileText, 
-  Wand2, 
-  CheckCircle, 
-  AlertCircle, 
-  Edit3, 
-  Eye, 
-  BarChart3,
-  Upload,
-  Download,
-  Sparkles,
-  Target,
-  TrendingUp,
-  Bot,
-  Zap,
-  FileDown,
-  Settings
+import { Textarea } from "@/components/ui/textarea";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+    AlertCircle,
+    ArrowLeft,
+    BarChart3,
+    Bot,
+    CheckCircle,
+    Edit3,
+    Eye,
+    FileDown,
+    FileText,
+    Loader2,
+    Settings,
+    Sparkles,
+    Target,
+    Upload,
+    Wand2,
+    Zap
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 
 // Import new components
-import { DualPaneEditor } from "@/components/editor/DualPaneEditor";
-import { OCRProgressTracker } from "@/components/ocr/OCRProgressTracker";
-import { OCRErrorDisplay } from "@/components/ocr/OCRErrorDisplay";
-import { JobAnalysisDisplay } from "@/components/job-analysis/JobAnalysisDisplay";
 import { AIAnalysisDisplay } from "@/components/ai-analysis/AIAnalysisDisplay";
+import { DualPaneEditor } from "@/components/editor/DualPaneEditor";
+import { JobAnalysisDisplay } from "@/components/job-analysis/JobAnalysisDisplay";
+import { OCRErrorDisplay } from "@/components/ocr/OCRErrorDisplay";
+import { OCRProgressTracker } from "@/components/ocr/OCRProgressTracker";
 import { ModernProfessionalTemplate } from "@/components/resume-templates/ModernProfessionalTemplate";
-import { jobAnalysisService } from "@/lib/services/job-analysis-service";
-import { unifiedAIService, type AIProvider, type UnifiedResumeAnalysis, type UnifiedEnhancedResumeData } from "@/lib/services/unified-ai-service";
 import { downloadService } from "@/lib/services/download-service";
-import type { JobAnalysis, CompatibilityScore } from "@/lib/services/job-analysis-service";
+import type { CompatibilityScore, JobAnalysis } from "@/lib/services/job-analysis-service";
+import { jobAnalysisService } from "@/lib/services/job-analysis-service";
 import type { OCRResult } from "@/lib/services/ocr-service";
+import { unifiedAIService, type AIProvider, type UnifiedEnhancedResumeData, type UnifiedResumeAnalysis } from "@/lib/services/unified-ai-service";
 
-// Animation variants
+// Animation variants - kept minimal for key sections only
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -73,12 +73,6 @@ const cardVariants = {
   }
 };
 
-const buttonVariants = {
-  idle: { scale: 1 },
-  hover: { scale: 1.05 },
-  tap: { scale: 0.95 }
-};
-
 interface Resume {
   _id: string;
   title: string;
@@ -89,6 +83,7 @@ interface Resume {
 }
 
 export default function TailorPage() {
+  const router = useRouter();
   const [jobDescription, setJobDescription] = useState("");
   const [tailoredResume, setTailoredResume] = useState<any | null>(null);
   const [isTailoring, setIsTailoring] = useState(false);
@@ -113,6 +108,47 @@ export default function TailorPage() {
   const [enhancedResumeData, setEnhancedResumeData] = useState<UnifiedEnhancedResumeData | null>(null);
   const [selectedAIProvider, setSelectedAIProvider] = useState<AIProvider>('gemini');
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Utility: Build plain text resume from enhanced structured data
+  function generateResumeTextFromEnhancedData(data: UnifiedEnhancedResumeData): string {
+    const parts: string[] = [];
+    if (data.name) parts.push(`${data.name}`);
+    const contactLine = [data.email, data.phone, (data as any).location].filter(Boolean).join(" | ");
+    if (contactLine) parts.push(contactLine);
+    if (data.summary) {
+      parts.push("\nSUMMARY\n" + data.summary);
+    }
+    if (Array.isArray(data.experience) && data.experience.length > 0) {
+      parts.push("\nEXPERIENCE");
+      data.experience.forEach((exp) => {
+        const header = [exp.title, exp.company, exp.years].filter(Boolean).join(" • ");
+        parts.push(header);
+        if (exp.description) parts.push(exp.description);
+        if (Array.isArray(exp.achievements) && exp.achievements.length > 0) {
+          exp.achievements.forEach((a) => parts.push(`- ${a}`));
+        }
+      });
+    }
+    if (Array.isArray(data.skills) && data.skills.length > 0) {
+      parts.push("\nSKILLS\n" + data.skills.join(', '));
+    }
+    if (data.education) {
+      parts.push("\nEDUCATION\n" + (typeof data.education === 'string' ? data.education : JSON.stringify(data.education)));
+    }
+    if (Array.isArray(data.projects) && data.projects.length > 0) {
+      parts.push("\nPROJECTS");
+      data.projects.forEach((p) => {
+        const tech = Array.isArray(p.technologies) && p.technologies.length ? ` (${p.technologies.join(', ')})` : '';
+        parts.push(`${p.name || 'Project'}${tech}`);
+        if (p.description) parts.push(p.description);
+      });
+    }
+    if (Array.isArray(data.certifications) && data.certifications.length > 0) {
+      parts.push("\nCERTIFICATIONS");
+      data.certifications.forEach((c) => parts.push(`- ${c}`));
+    }
+    return parts.join('\n');
+  }
 
   // Handle file upload
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -210,9 +246,19 @@ export default function TailorPage() {
     setIsTailoring(true);
     setError(null);
     try {
+      // Augment JD with analysis guidance so AI incorporates suggestions and missing keywords
+      const guidance = aiAnalysis
+        ? `\n\nOptimization Guidance from Analysis:\n- Suggestions: ${aiAnalysis.suggestions.join('; ')}\n- Missing Keywords: ${aiAnalysis.missingKeywords.join(', ')}\n- Section Feedback: summary(${aiAnalysis.sections.summary.feedback}); experience(${aiAnalysis.sections.experience.feedback}); skills(${aiAnalysis.sections.skills.feedback}); education(${aiAnalysis.sections.education.feedback})`
+        : '';
+      const augmentedJD = `${jobDescription}${guidance}`;
+
       // Use selected AI provider to enhance the resume
-      const enhancedData = await unifiedAIService.enhanceResume(editedText, jobDescription, selectedAIProvider);
-      
+      const enhancedData = await unifiedAIService.enhanceResume(editedText, augmentedJD, selectedAIProvider);
+
+      // Update text view to reflect enhanced result
+      const enhancedText = generateResumeTextFromEnhancedData(enhancedData);
+      setEditedText(enhancedText);
+
       setEnhancedResumeData(enhancedData);
       setTailoredResume(enhancedData);
       setActiveTab("result");
@@ -267,6 +313,16 @@ export default function TailorPage() {
       variants={containerVariants}
     >
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-4">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => router.push('/dashboard')}
+            className="hover:bg-white/10 border-white/20 text-white"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        </div>
         <motion.div className="mb-8 text-center" variants={itemVariants}>
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
             AI Resume Tailoring Studio
@@ -372,11 +428,7 @@ export default function TailorPage() {
                       </motion.div>
                       <h3 className="text-xl font-semibold mb-2 text-white">Drop your resume here</h3>
                       <p className="text-gray-400 mb-6">or click to browse files</p>
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
+                      <div>
                         <Button
                           onClick={() => fileInputRef.current?.click()}
                           disabled={isUploading}
@@ -394,7 +446,7 @@ export default function TailorPage() {
                             </>
                           )}
                         </Button>
-                      </motion.div>
+                      </div>
                       <input
                         type="file"
                         ref={fileInputRef}
@@ -426,84 +478,53 @@ export default function TailorPage() {
             </TabsContent>
 
             <TabsContent value="edit" className="space-y-6">
-              <AnimatePresence>
-                {ocrResult && (
-                  <motion.div 
-                    className="space-y-6"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5 }}
-                  >
-                    <motion.div variants={itemVariants}>
-                      <OCRErrorDisplay
-                        confidence={ocrResult.confidence}
-                        errorRegions={ocrResult.errorRegions}
-                        extractedText={ocrResult.extractedText}
-                      />
-                    </motion.div>
+              {ocrResult && (
+                <div className="space-y-6">
+                  <div>
+                    <OCRErrorDisplay
+                      confidence={ocrResult.confidence}
+                      errorRegions={ocrResult.errorRegions}
+                      extractedText={ocrResult.extractedText}
+                    />
+                  </div>
 
-                    <motion.div variants={cardVariants} whileHover="hover">
-                      <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border-b border-gray-700">
-                          <CardTitle className="flex items-center gap-3 text-xl">
-                            <div className="p-2 bg-purple-600/20 rounded-lg">
-                              <Edit3 className="w-6 h-6 text-purple-400" />
-                            </div>
-                            Professional Text Editor
-                          </CardTitle>
-                          <p className="text-gray-400">Review and perfect your extracted resume content</p>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                          <div className="h-[700px] bg-gray-900/50">
-                            <DualPaneEditor
-                              originalDocument={ocrResult.originalFile}
-                              extractedText={ocrResult.extractedText}
-                              onTextChange={handleTextChange}
-                              highlightRegions={ocrResult.errorRegions}
-                              confidence={ocrResult.confidence}
-                            />
+                  <div>
+                    <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border-b border-gray-700">
+                        <CardTitle className="flex items-center gap-3 text-xl">
+                          <div className="p-2 bg-purple-600/20 rounded-lg">
+                            <Edit3 className="w-6 h-6 text-purple-400" />
                           </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
+                          Professional Text Editor
+                        </CardTitle>
+                        <p className="text-gray-400">Review and perfect your extracted resume content</p>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="h-[700px] bg-gray-900/50">
+                          <DualPaneEditor
+                            originalDocument={ocrResult.originalFile}
+                            extractedText={ocrResult.extractedText}
+                            onTextChange={handleTextChange}
+                            highlightRegions={ocrResult.errorRegions}
+                            confidence={ocrResult.confidence}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                    <motion.div 
-                      className="flex justify-center gap-4"
-                      variants={itemVariants}
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={() => setActiveTab("tailor")}
+                      disabled={!editedText}
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-xl font-medium shadow-lg"
                     >
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          onClick={() => setActiveTab("tailor")}
-                          disabled={!editedText}
-                          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-xl font-medium shadow-lg"
-                        >
-                          <Target className="mr-2 w-5 h-5" />
-                          Go to Analyze
-                        </Button>
-                      </motion.div>
-                      
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          onClick={() => setActiveTab("tailor")}
-                          disabled={!editedText}
-                          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 rounded-xl font-medium shadow-lg"
-                        >
-                          <TrendingUp className="mr-2 w-5 h-5" />
-                          Continue to Analysis
-                        </Button>
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      <Target className="mr-2 w-5 h-5" />
+                      Go to Analyze
+                    </Button>
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="tailor" className="space-y-8">
@@ -594,11 +615,7 @@ export default function TailorPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
+                      <div>
                         <Button
                           onClick={() => setSelectedAIProvider('gemini')}
                           variant={selectedAIProvider === 'gemini' ? 'default' : 'outline'}
@@ -614,13 +631,9 @@ export default function TailorPage() {
                             <div className="text-xs opacity-80">ATS Analysis • Structure Check</div>
                           </div>
                         </Button>
-                      </motion.div>
+                      </div>
 
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
+                      <div>
                         <Button
                           onClick={() => setSelectedAIProvider('openai')}
                           variant={selectedAIProvider === 'openai' ? 'default' : 'outline'}
@@ -636,7 +649,7 @@ export default function TailorPage() {
                             <div className="text-xs opacity-80">Creative Enhancement • Industry Focus</div>
                           </div>
                         </Button>
-                      </motion.div>
+                      </div>
                     </div>
                     
                     <div className="mt-4 p-3 bg-gray-900/50 rounded-lg">
@@ -657,15 +670,8 @@ export default function TailorPage() {
               </motion.div>
 
               {/* Enhanced Action Buttons */}
-              <motion.div 
-                className="flex justify-center gap-6"
-                variants={itemVariants}
-              >
-                <motion.div
-                  variants={buttonVariants}
-                  whileHover="hover"
-                  whileTap="tap"
-                >
+              <div className="flex justify-center gap-6">
+                <div>
                   <Button
                     onClick={analyzeJobDescription}
                     disabled={isAnalyzing || !jobDescription.trim() || !editedText}
@@ -687,13 +693,9 @@ export default function TailorPage() {
                       </>
                     )}
                   </Button>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  variants={buttonVariants}
-                  whileHover="hover"
-                  whileTap="tap"
-                >
+                <div>
                   <Button
                     onClick={handleTailorResume}
                     disabled={isTailoring || !hasAnalyzed || !jobDescription.trim() || !editedText}
@@ -711,8 +713,8 @@ export default function TailorPage() {
                       </>
                     )}
                   </Button>
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
 
               {/* Enhanced Analysis Results */}
               <AnimatePresence>
@@ -799,11 +801,7 @@ export default function TailorPage() {
                       {/* Download Buttons */}
                       {tailoredResume && (
                         <div className="flex items-center gap-2">
-                          <motion.div
-                            variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                          >
+                          <div>
                             <Button
                               onClick={() => handleDownload('pdf')}
                               disabled={isDownloading}
@@ -818,13 +816,9 @@ export default function TailorPage() {
                                 </>
                               )}
                             </Button>
-                          </motion.div>
+                          </div>
                           
-                          <motion.div
-                            variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                          >
+                          <div>
                             <Button
                               onClick={() => handleDownload('docx')}
                               disabled={isDownloading}
@@ -839,7 +833,7 @@ export default function TailorPage() {
                                 </>
                               )}
                             </Button>
-                          </motion.div>
+                          </div>
                         </div>
                       )}
                     </CardTitle>
