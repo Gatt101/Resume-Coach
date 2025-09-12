@@ -1,31 +1,31 @@
 "use client"
 
-import { useRouter, usePathname } from "next/navigation"
-import { useState, useMemo, useEffect } from "react"
-import { motion } from "framer-motion"
-import { useUser, UserButton } from "@clerk/nextjs"
-import {
-  LayoutDashboard,
-  FileText,
-  Briefcase,
-  Target,
-  BookOpen,
-  BarChart3,
-  Settings,
-  Upload,
-  PlusCircle,
-  Zap,
-  Download,
-  Share2,
-  CheckCircle2,
-  Star,
-  Brain,
-} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { GetUserResumes } from "@/lib/actions/resume.action"
+import { UserButton, useUser } from "@clerk/nextjs"
+import { motion } from "framer-motion"
+import {
+    ArrowLeft,
+    BarChart3,
+    BookOpen,
+    Brain,
+    Briefcase,
+    CheckCircle2,
+    Download,
+    FileText,
+    LayoutDashboard,
+    PlusCircle,
+    Settings,
+    Share2,
+    Star,
+    Target,
+    Upload,
+    Zap,
+} from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -209,6 +209,15 @@ export default function DashboardPage() {
         className={`group sticky left-0 top-0 z-20 flex h-dvh flex-col border-r bg-black/20 backdrop-blur supports-[backdrop-filter]:bg-black/10 transition-[width] duration-300 ease-in-out ${railOpen ? "w-60" : "w-16"}`}
       >
         <div className="flex items-center gap-2 border-b px-3 py-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/')}
+            className={`shrink-0 hover:bg-white/5 transition-colors ${!railOpen ? "w-8 h-8" : ""}`}
+            title="Back to Home"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
           <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 text-primary-foreground grid place-items-center">
             <Target className="size-4" />
           </div>

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, FileText, Plus, Edit, Trash2, Download, Eye } from "lucide-react";
+import { ArrowLeft, Edit, Eye, FileText, Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface Resume {
   _id: string;
@@ -104,11 +104,26 @@ export default function ResumesPage() {
   return (
     <div className="min-h-screen bg-dark p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">My Resumes</h1>
-            <p className="text-gray-400">Manage your resume collection</p>
+        <div className="flex items-center gap-4 mb-6">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => router.push('/dashboard')}
+            className="hover:bg-gray-200 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-600 rounded-lg">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">My Resumes</h1>
+              <p className="text-gray-400">Manage your resume collection</p>
+            </div>
           </div>
+        </div>
+        <div className="flex items-center justify-end mb-8">
           <Button
             onClick={() => router.push("/dashboard/builder")}
             className="bg-purple-600 hover:bg-purple-700"
