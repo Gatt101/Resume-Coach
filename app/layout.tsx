@@ -2,20 +2,7 @@ import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from '@clerk/nextjs'
 import type { Metadata } from "next"
-import { Inter, Source_Sans_3 } from "next/font/google"
 import type React from "react"
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-})
-
-const sourceSans = Source_Sans_3({
-  subsets: ["latin"],
-  variable: "--font-source-sans-pro",
-  display: "swap",
-})
 
 export const metadata: Metadata = {
   title: "NexCV Coach - Smarter Resumes. Stronger Careers.",
@@ -36,8 +23,8 @@ export default function RootLayout({
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/dashboard"
     >
-      <html lang="en" suppressHydrationWarning className={`${inter.variable} ${sourceSans.variable}`}>
-        <body className={inter.className}>
+      <html lang="en" suppressHydrationWarning>
+        <body>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
           </ThemeProvider>
