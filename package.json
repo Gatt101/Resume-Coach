@@ -2,12 +2,14 @@
   "name": "nexcv_coach",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.10.0"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "cross-env LIGHTNINGCSS_IGNORE_NATIVE=1 next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "npm install --no-save --platform=linuxmusl --arch=x64 lightningcss",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"
@@ -63,5 +65,9 @@
     "tw-animate-css": "^1.3.8",
     "typescript": "^5",
     "vitest": "^2.1.8"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.0",
+    "lightningcss-linux-x64-gnu": "^1.29.0"
   }
 }
