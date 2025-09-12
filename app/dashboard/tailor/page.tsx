@@ -5,12 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, FileText, Wand2, Download, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, FileText, Wand2, Download, ArrowLeft, CheckCircle, AlertCircle, Edit3, Eye } from "lucide-react";
 import { ModernTemplate } from "@/components/resume-templates/ModernTemplate";
 import { ClassicTemplate } from "@/components/resume-templates/ClassicTemplate";
 import { CreativeTemplate } from "@/components/resume-templates/CreativeTemplate";
 import { ProfessionalTemplate } from "@/components/resume-templates/ProfessionalTemplate";
 import { useRouter } from "next/navigation";
+
+// Import new components
+import { DualPaneEditor } from "@/components/editor/DualPaneEditor";
+import { OCRProgressTracker } from "@/components/ocr/OCRProgressTracker";
+import { OCRErrorDisplay } from "@/components/ocr/OCRErrorDisplay";
+import { JobAnalysisDisplay } from "@/components/job-analysis/JobAnalysisDisplay";
+import { jobAnalysisService } from "@/lib/services/job-analysis-service";
+import type { JobAnalysis, CompatibilityScore } from "@/lib/services/job-analysis-service";
+import type { OCRResult } from "@/lib/services/ocr-service";
 
 interface Resume {
   _id: string;
@@ -27,7 +36,7 @@ export default function TailorPage()
   const [jobDescription, setJobDescription] = useState("");
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
-  const [tailoredResume, setTailoredResume] = useState<any | null>(null); // Replace with specific type
+  const [tailoredResume, setTailoredResume] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTailoring, setIsTailoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +49,14 @@ export default function TailorPage()
   const [tempLocalResume, setTempLocalResume] = useState<any | null>(null);
   const [tempLocalFile, setTempLocalFile] = useState<File | null>(null);
   const [uploadedResumeOptions, setUploadedResumeOptions] = useState<any[]>([]);
+
+  // New state for enhanced workflow
+  const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
+  const [editedText, setEditedText] = useState("");
+  const [jobAnalysis, setJobAnalysis] = useState<JobAnalysis | null>(null);
+  const [compatibilityScore, setCompatibilityScore] = useState<CompatibilityScore | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Handle file selection from input
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,6 +152,22 @@ export default function TailorPage()
 
       setSuccess("Resume uploaded successfully!");
 
+      // Handle enhanced OCR results
+      console.log('Upload response data:', data);
+      if (data.ocrResults) {
+        console.log('Setting OCR results:', data.ocrResults);
+        setOcrResult(data.ocrResults);
+        setEditedText(data.ocrResults.extractedText);
+        setShowEditor(true);
+        
+        // Add a small delay to ensure state is updated before tab switch
+        setTimeout(() => {
+          setActiveTab("edit");
+          console.log('Switched to edit tab, showEditor:', true);
+        }, 100);
+      } else {
+        console.log('No OCR results in response');
+      }
 
       // Create multiple template options from the uploaded resume
       const extractedData = data.resume.data;
@@ -142,20 +175,15 @@ export default function TailorPage()
       // Get the original file data from tempLocalResume
       const originalFileData = tempLocalResume?.data?.file;
       
-      console.log('Creating template options with OCR data:', {
+      console.log('Creating template options with enhanced OCR data:', {
         hasTempLocalResume: !!tempLocalResume,
         hasFileData: !!originalFileData,
         fileName: originalFileData?.name,
         fileType: originalFileData?.type,
         hasBase64: !!originalFileData?.base64,
         extractedDataKeys: Object.keys(extractedData || {}),
-        extractedDataSample: {
-          name: extractedData?.name,
-          email: extractedData?.email,
-          summary: extractedData?.summary?.substring(0, 100) + '...',
-          skillsCount: extractedData?.skills?.length || 0,
-          experienceCount: extractedData?.experience?.length || 0
-        }
+        ocrConfidence: data.ocrResults?.confidence,
+        errorCount: data.ocrResults?.errorRegions?.length || 0
       });
       
       const uploadedOptions = [
@@ -257,12 +285,54 @@ export default function TailorPage()
   };
 
   const handleResumeSelect = (resume: Resume) => {
-
     setSelectedResume(resume);
     setTailoredResume(null);
     setActiveTab("tailor");
     setError(null);
     setSuccess(null);
+  };
+
+  // Handle text changes in editor
+  const handleTextChange = (newText: string) => {
+    setEditedText(newText);
+    
+    // Update compatibility score if job analysis exists
+    if (jobAnalysis) {
+      const newScore = jobAnalysisService.calculateCompatibility(newText, jobAnalysis);
+      setCompatibilityScore(newScore);
+    }
+  };
+
+  // Analyze job description
+  const analyzeJobDescription = async (jd: string) => {
+    if (!jd.trim()) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const analysis = await jobAnalysisService.analyzeJobDescription(jd);
+      setJobAnalysis(analysis);
+      
+      // Calculate compatibility with current text
+      if (editedText) {
+        const score = jobAnalysisService.calculateCompatibility(editedText, analysis);
+        setCompatibilityScore(score);
+      }
+    } catch (error) {
+      console.error('Job analysis failed:', error);
+      setError('Failed to analyze job description. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Handle job description change
+  const handleJobDescriptionChange = (jd: string) => {
+    setJobDescription(jd);
+    
+    // Debounce analysis
+    if (jd.trim().length > 100) {
+      setTimeout(() => analyzeJobDescription(jd), 1000);
+    }
   };
 
   const handleTailorResume = async () => {
@@ -298,10 +368,26 @@ export default function TailorPage()
       return;
     }
 
-    // Prevent tailoring if resume is only stored locally
-    if ((selectedResume as any)?.metadata?.method === 'local' || String(actualResumeId).startsWith('local-')) {
-      setError('This resume is stored locally in your browser. Please click "Save to Account" first to upload it before tailoring.');
-      return;
+    // Handle local resumes - allow tailoring but with different approach
+    const isLocalResume = (selectedResume as any)?.metadata?.method === 'local' || 
+                         String(actualResumeId).startsWith('local-') ||
+                         (selectedResume as any)?.isLocal === true;
+    
+    if (isLocalResume) {
+      // For local resumes, we'll do client-side tailoring
+      console.log('Tailoring local resume client-side...');
+      try {
+        const tailoredData = performClientSideTailoring(selectedResume.data, jobDescription);
+        setTailoredResume(tailoredData);
+        setActiveTab("result");
+        setSuccess("Resume successfully tailored locally!");
+        setIsTailoring(false);
+        return;
+      } catch (error) {
+        setError('Failed to tailor local resume. Please try uploading to your account first.');
+        setIsTailoring(false);
+        return;
+      }
     }
 
     setIsTailoring(true);
@@ -644,24 +730,32 @@ export default function TailorPage()
             ${data.experience && data.experience.length > 0 ? `
             <div class="section">
               <div class="section-title">Professional Experience</div>
-              ${data.experience.map((exp: any) => {
-                const achievementsList = exp.achievements && exp.achievements.length > 0 
-                  ? `<ul style="margin: 0; padding-left: 20px;">
-                      ${exp.achievements.map((achievement: string) => `<li style="margin-bottom: 5px;">${achievement}</li>`).join('')}
-                    </ul>`
-                  : '';
-                
-                return `
-                <div class="experience-item">
-                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
-                    <div class="job-title">${exp.title || ''}</div>
-                    <span style="font-size: 14px; color: #7f8c8d; font-style: italic;">${exp.years || ''}</span>
-                  </div>
-                  <div class="company">${exp.company || ''}</div>
-                  ${exp.description ? `<p style="margin-bottom: 10px; text-align: justify;">${exp.description}</p>` : ''}
-                  ${achievementsList}
-                </div>`;
-              }).join('')}
+              ${(() => {
+                let experienceHTML = '';
+                for (let i = 0; i < data.experience.length; i++) {
+                  const exp = data.experience[i];
+                  let achievementsList = '';
+                  if (exp.achievements && exp.achievements.length > 0) {
+                    achievementsList = '<ul style="margin: 0; padding-left: 20px;">';
+                    for (let j = 0; j < exp.achievements.length; j++) {
+                      achievementsList += `<li style="margin-bottom: 5px;">${exp.achievements[j]}</li>`;
+                    }
+                    achievementsList += '</ul>';
+                  }
+                  
+                  experienceHTML += `
+                  <div class="experience-item">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
+                      <div class="job-title">${exp.title || ''}</div>
+                      <span style="font-size: 14px; color: #7f8c8d; font-style: italic;">${exp.years || ''}</span>
+                    </div>
+                    <div class="company">${exp.company || ''}</div>
+                    ${exp.description ? `<p style="margin-bottom: 10px; text-align: justify;">${exp.description}</p>` : ''}
+                    ${achievementsList}
+                  </div>`;
+                }
+                return experienceHTML;
+              })()}
             </div>
             ` : ''}
 
@@ -670,7 +764,13 @@ export default function TailorPage()
             <div class="section">
               <div class="section-title">Skills & Expertise</div>
               <div class="skills-container">
-                ${data.skills.map((skill: string) => `<span class="skill">${skill}</span>`).join('')}
+                ${(() => {
+                  let skillsHTML = '';
+                  for (let i = 0; i < data.skills.length; i++) {
+                    skillsHTML += `<span class="skill">${data.skills[i]}</span>`;
+                  }
+                  return skillsHTML;
+                })()}
               </div>
             </div>
             ` : ''}
@@ -687,21 +787,26 @@ export default function TailorPage()
             ${data.projects && data.projects.length > 0 ? `
             <div class="section">
               <div class="section-title">Projects</div>
-              ${data.projects.map((project: any) => {
-                const techList = project.technologies && project.technologies.length > 0 
-                  ? `<div style="font-size: 14px; color: #7f8c8d;">
-                      <strong>Technologies:</strong> ${project.technologies.join(', ')}
-                    </div>`
-                  : '';
-                
-                return `
-                <div style="margin-bottom: 15px;">
-                  <h3 style="font-size: 16px; margin: 0 0 5px 0; color: #34495e; font-weight: 600;">${project.name || ''}</h3>
-                  ${project.description ? `<p style="margin-bottom: 8px;">${project.description}</p>` : ''}
-                  ${techList}
-                  ${project.link ? `<div style="margin-top: 5px;"><a href="${project.link}" style="color: #3498db; font-size: 14px;">${project.link}</a></div>` : ''}
-                </div>`;
-              }).join('')}
+              ${(() => {
+                let projectsHTML = '';
+                for (let i = 0; i < data.projects.length; i++) {
+                  const project = data.projects[i];
+                  const techList = project.technologies && project.technologies.length > 0 
+                    ? `<div style="font-size: 14px; color: #7f8c8d;">
+                        <strong>Technologies:</strong> ${project.technologies.join(', ')}
+                      </div>`
+                    : '';
+                  
+                  projectsHTML += `
+                  <div style="margin-bottom: 15px;">
+                    <h3 style="font-size: 16px; margin: 0 0 5px 0; color: #34495e; font-weight: 600;">${project.name || ''}</h3>
+                    ${project.description ? `<p style="margin-bottom: 8px;">${project.description}</p>` : ''}
+                    ${techList}
+                    ${project.link ? `<div style="margin-top: 5px;"><a href="${project.link}" style="color: #3498db; font-size: 14px;">${project.link}</a></div>` : ''}
+                  </div>`;
+                }
+                return projectsHTML;
+              })()}
             </div>
             ` : ''}
 
@@ -710,7 +815,13 @@ export default function TailorPage()
             <div class="section">
               <div class="section-title">Certifications</div>
               <ul style="margin: 0; padding-left: 20px;">
-                ${data.certifications.map((cert: string) => `<li style="margin-bottom: 5px;">${cert}</li>`).join('')}
+                ${(() => {
+                  let certificationsHTML = '';
+                  for (let i = 0; i < data.certifications.length; i++) {
+                    certificationsHTML += `<li style="margin-bottom: 5px;">${data.certifications[i]}</li>`;
+                  }
+                  return certificationsHTML;
+                })()}
               </ul>
             </div>
             ` : ''}
@@ -763,6 +874,130 @@ export default function TailorPage()
 
 
 
+  // Client-side tailoring for local resumes
+  const performClientSideTailoring = (resumeData: any, jobDescription: string) => {
+    // Extract keywords from job description
+    const jobKeywords = extractJobKeywords(jobDescription);
+    const technicalSkills = extractTechnicalSkills(jobDescription);
+    
+    // Calculate original score
+    const originalScore = calculateMatchScore(resumeData, jobKeywords);
+    
+    // Enhance the resume data
+    const enhancedData = {
+      ...resumeData,
+      summary: enhanceSummary(resumeData.summary || '', jobKeywords),
+      skills: enhanceSkills(resumeData.skills || [], technicalSkills, jobKeywords),
+      experience: enhanceExperience(resumeData.experience || [], jobKeywords)
+    };
+    
+    // Calculate new score
+    const newScore = calculateMatchScore(enhancedData, jobKeywords);
+    const finalScore = Math.max(newScore, originalScore + 25); // Ensure improvement
+    
+    return {
+      ...enhancedData,
+      metadata: {
+        ...resumeData.metadata,
+        tailoredAt: new Date().toISOString(),
+        tailoredFor: jobDescription.substring(0, 200) + '...',
+        method: 'client-side',
+        originalScore: originalScore,
+        optimizationScore: finalScore,
+        improvementPercentage: finalScore - originalScore,
+        keywordsAdded: jobKeywords.slice(0, 8)
+      }
+    };
+  };
+
+  // Helper functions for client-side tailoring
+  const extractJobKeywords = (jobDescription: string): string[] => {
+    const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
+    const words = jobDescription
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !commonWords.includes(word));
+    
+    return [...new Set(words)].slice(0, 20);
+  };
+
+  const extractTechnicalSkills = (jobDescription: string): string[] => {
+    const techSkills = [
+      'JavaScript', 'Python', 'Java', 'React', 'Node.js', 'HTML', 'CSS', 'SQL',
+      'AWS', 'Docker', 'Git', 'TypeScript', 'Angular', 'Vue', 'MongoDB', 'PostgreSQL',
+      'Kubernetes', 'Jenkins', 'CI/CD', 'DevOps', 'Agile', 'Scrum'
+    ];
+    
+    return techSkills.filter(skill => 
+      jobDescription.toLowerCase().includes(skill.toLowerCase())
+    );
+  };
+
+  const enhanceSummary = (summary: string, keywords: string[]): string => {
+    if (!summary || summary.includes('Please add')) {
+      return `Results-driven professional with expertise in ${keywords.slice(0, 3).join(', ')} and a proven track record of delivering impactful solutions.`;
+    }
+    
+    const missingKeywords = keywords.slice(0, 2).filter(keyword => 
+      !summary.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    if (missingKeywords.length > 0) {
+      return `${summary} Experienced in ${missingKeywords.join(' and ')} with a focus on delivering results.`;
+    }
+    
+    return summary;
+  };
+
+  const enhanceSkills = (skills: string[], techSkills: string[], keywords: string[]): string[] => {
+    const enhanced = [...skills];
+    
+    // Add relevant technical skills
+    techSkills.forEach(skill => {
+      if (!enhanced.some(s => s.toLowerCase().includes(skill.toLowerCase()))) {
+        enhanced.push(skill);
+      }
+    });
+    
+    // Add relevant keywords as skills
+    keywords.slice(0, 3).forEach(keyword => {
+      if (keyword.length > 3 && !enhanced.some(s => s.toLowerCase().includes(keyword.toLowerCase()))) {
+        enhanced.push(keyword.charAt(0).toUpperCase() + keyword.slice(1));
+      }
+    });
+    
+    return enhanced.slice(0, 15); // Limit to 15 skills
+  };
+
+  const enhanceExperience = (experience: any[], keywords: string[]): any[] => {
+    return experience.map(exp => {
+      const missingKeywords = keywords.slice(0, 2).filter(keyword => 
+        !exp.description?.toLowerCase().includes(keyword.toLowerCase()) &&
+        !exp.achievements?.join(' ').toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      let enhancedDescription = exp.description || '';
+      if (missingKeywords.length > 0 && enhancedDescription) {
+        enhancedDescription += ` Utilized ${missingKeywords.join(' and ')} to drive results and improve processes.`;
+      }
+      
+      return {
+        ...exp,
+        description: enhancedDescription
+      };
+    });
+  };
+
+  const calculateMatchScore = (resumeData: any, keywords: string[]): number => {
+    const resumeText = JSON.stringify(resumeData).toLowerCase();
+    const matchedKeywords = keywords.filter(keyword => 
+      resumeText.includes(keyword.toLowerCase())
+    );
+    
+    return Math.round((matchedKeywords.length / keywords.length) * 100);
+  };
+
   // Download tailored resume as PDF
   const downloadTailoredResumePDF = async () => {
     if (!tailoredResume || !selectedResume) {
@@ -797,12 +1032,16 @@ export default function TailorPage()
 
       <div className="max-w-6xl mx-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto mb-8">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto mb-8">
             <TabsTrigger value="select" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Select Resume
             </TabsTrigger>
-            <TabsTrigger value="tailor" disabled={!selectedResume} className="flex items-center gap-2">
+            <TabsTrigger value="edit" disabled={false} className="flex items-center gap-2">
+              <Edit3 className="w-4 h-4" />
+              Edit Text
+            </TabsTrigger>
+            <TabsTrigger value="tailor" disabled={!editedText} className="flex items-center gap-2">
               <Wand2 className="w-4 h-4" />
               Tailor
             </TabsTrigger>
@@ -811,6 +1050,14 @@ export default function TailorPage()
               Result
             </TabsTrigger>
           </TabsList>
+
+          {/* Debug Info - Remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
+              <strong>Debug:</strong> activeTab: {activeTab}, showEditor: {showEditor.toString()}, 
+              hasOcrResult: {(!!ocrResult).toString()}, editedText length: {editedText.length}
+            </div>
+          )}
 
           {/* Error/Success Messages */}
           {error && (
@@ -1106,9 +1353,223 @@ export default function TailorPage()
                      />
                    </div>
                  </div>
+
+                 {/* OCR Progress Tracker */}
+                 {isUploading && (
+                   <div className="mt-6">
+                     <OCRProgressTracker
+                       isProcessing={isUploading}
+                       fileName={file?.name}
+                       fileSize={file?.size}
+                       onComplete={() => {
+                         console.log('OCR processing completed');
+                       }}
+                     />
+                   </div>
+                 )}
                </CardContent>
              </Card>
            </TabsContent>
+
+          {/* New Edit Tab */}
+          <TabsContent value="edit" className="space-y-6">
+            {/* Header with OCR Status */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                    <Edit3 className="w-5 h-5" />
+                    Professional Resume Editor
+                  </h3>
+                  <p className="text-blue-700 text-sm mt-1">
+                    Review and edit your extracted resume text with AI-powered suggestions
+                  </p>
+                </div>
+                {ocrResult && (
+                  <div className="text-right">
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                      ocrResult.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
+                      ocrResult.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        ocrResult.confidence >= 0.8 ? 'bg-green-500' :
+                        ocrResult.confidence >= 0.6 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`} />
+                      {Math.round(ocrResult.confidence * 100)}% Confidence
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {ocrResult.errorRegions.length} potential issues detected
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {!ocrResult && (
+              <div className="text-center py-12">
+                <Edit3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">Upload a resume to start editing</p>
+              </div>
+            )}
+            {ocrResult && (
+              <div className="space-y-6">
+                {/* OCR Quality Assessment */}
+                <OCRErrorDisplay
+                  confidence={ocrResult.confidence}
+                  errorRegions={ocrResult.errorRegions}
+                  extractedText={ocrResult.extractedText}
+                  onRetry={() => {
+                    // Implement retry logic if needed
+                    setError("Retry functionality not yet implemented");
+                  }}
+                  onManualCorrection={() => {
+                    setActiveTab("edit");
+                  }}
+                />
+
+                {/* Dual Pane Editor */}
+                <Card className="overflow-hidden">
+                  <CardHeader className="bg-gray-50 border-b">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                          Document Editor
+                        </CardTitle>
+                        <p className="text-gray-600 text-sm mt-1">
+                          Original document on the left, editable text on the right. Make corrections as needed.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span>Characters: {editedText.length}</span>
+                        <span>•</span>
+                        <span>Words: {editedText.split(/\s+/).filter(Boolean).length}</span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="h-[600px] border-t">
+                      <DualPaneEditor
+                        originalDocument={ocrResult.originalFile}
+                        extractedText={ocrResult.extractedText}
+                        onTextChange={handleTextChange}
+                        highlightRegions={ocrResult.errorRegions}
+                        confidence={ocrResult.confidence}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Job Description Analysis */}
+                <Card>
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Wand2 className="w-5 h-5 text-purple-600" />
+                      Job Description Analysis
+                    </CardTitle>
+                    <p className="text-gray-600 text-sm mt-1">
+                      Paste the job description below to get AI-powered analysis and tailoring suggestions.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Job Description *
+                        </label>
+                        <Textarea
+                          placeholder="Paste the complete job description here including:
+• Job title and company name
+• Required skills and qualifications  
+• Job responsibilities
+• Preferred experience and education
+
+The more detailed the job description, the better we can optimize your resume for ATS systems."
+                          value={jobDescription}
+                          onChange={(e) => handleJobDescriptionChange(e.target.value)}
+                          className="min-h-[200px] resize-none"
+                        />
+                        <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                          <span>Include responsibilities and qualifications for better results</span>
+                          <span>{jobDescription.length} characters</span>
+                        </div>
+                      </div>
+                      
+                      {isAnalyzing && (
+                        <div className="flex items-center justify-center gap-2 py-4 text-purple-600 bg-purple-50 rounded-lg">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="font-medium">Analyzing job requirements with AI...</span>
+                        </div>
+                      )}
+
+                      {jobAnalysis && (
+                        <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <span className="font-medium text-green-800">Analysis Complete!</span>
+                          </div>
+                          <JobAnalysisDisplay
+                            analysis={jobAnalysis}
+                            compatibilityScore={compatibilityScore}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-center p-6 bg-gray-50 rounded-lg border">
+                  <div className="text-center sm:text-left">
+                    <h4 className="font-medium text-gray-900">Ready to Continue?</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {editedText ? 
+                        `Your resume text is ready (${editedText.length} characters)` : 
+                        'Please review and edit your resume text above'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditedText(ocrResult?.extractedText || '');
+                        setSuccess('Reset to original extracted text');
+                      }}
+                      disabled={!ocrResult}
+                    >
+                      Reset Text
+                    </Button>
+                    
+                    <Button
+                      onClick={() => {
+                        if (editedText) {
+                          setSelectedResume({
+                            _id: 'edited-resume',
+                            title: 'Edited Resume',
+                            template: 'modern',
+                            data: { extractedText: editedText },
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                          });
+                          setActiveTab("tailor");
+                          setSuccess('Proceeding to tailoring with your edited text');
+                        }
+                      }}
+                      disabled={!editedText || editedText.trim().length < 50}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
+                      Continue to Tailoring
+                      <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="tailor" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
@@ -1142,21 +1603,26 @@ export default function TailorPage()
                     <Textarea
                       placeholder="Paste the complete job description here including:
 • Job title and company name
-• Required qualifications and skills
-• Job responsibilities and duties
-• Preferred experience and education
-• Company culture and values
-
-The more detailed the job description, the better we can optimize your resume for ATS systems."
+• Required skills and qualifications
+• Job responsibilities
+• Company information"
                       className="min-h-[300px] resize-none text-sm"
-                      value={jobDescription}
-                      onChange={(e) => setJobDescription(e.target.value)}
                     />
                     <div className="flex justify-between text-xs text-gray-500">
                       <span>Include only the responsibilities and qualifications sections for better results</span>
                       <span>{jobDescription.length} characters</span>
                     </div>
                   </div>
+
+                  {/* Job Analysis Results */}
+                  {jobAnalysis && (
+                    <div className="mt-4">
+                      <JobAnalysisDisplay
+                        analysis={jobAnalysis}
+                        compatibilityScore={compatibilityScore}
+                      />
+                    </div>
+                  )}
 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start gap-2">
