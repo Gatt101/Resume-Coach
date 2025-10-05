@@ -41,7 +41,7 @@ export default function LandingPage() {
     { label: "Demo", href: "#demo", icon: Upload, active: false },
     { label: "Pricing", href: "#pricing", icon: BarChart3, active: false },
     { label: "FAQ", href: "#faq", icon: Eye, active: false },
-    { label: "Log in", href: "#", icon: Moon, active: false },
+    { label: "Log in", href: "/login", icon: Moon, active: false },
   ]
 
   useEffect(() => {
@@ -143,9 +143,13 @@ export default function LandingPage() {
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
                   size={sidebarCollapsed ? "icon" : "default"}
+                  onClick={
+                    () =>{router.push(item.href)}
+                  }
                 >
                   <item.icon className="size-4" />
                   {!sidebarCollapsed && <span>{item.label}</span>}
+                  
                 </Button>
               </li>
             ))}
