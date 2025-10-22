@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware';
 
 interface ResumeAnalysis {
   strengths: string[];
@@ -16,6 +17,15 @@ interface ResumeAnalysis {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 AI ANALYZE: Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request);
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 AI ANALYZE: Credit validation passed for user ${userId}`);
   
   try {
     const { resumeText, jobDescription } = await request.json();
@@ -166,7 +176,31 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('🎉 AI ANALYZE: Sending successful response');
-    return NextResponse.json({ analysis });
+    
+    // Deduct credits after successful processing
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/ai-analyze',
+        5,
+        {
+          resumeLength: resumeText?.length || 0,
+          jobDescriptionLength: jobDescription?.length || 0,
+          model: 'openai/gpt-oss-20b:free'
+        }
+      );
+      console.log(`💳 AI ANALYZE: Credits deducted. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ analysis });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 AI ANALYZE: Credit deduction failed:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({ analysis });
+    }
     
   } catch (error) {
     console.error('💥 AI ANALYZE: Error occurred:', error);
@@ -188,6 +222,29 @@ export async function POST(request: NextRequest) {
     };
     
     console.log('📤 AI ANALYZE: Sending fallback response');
-    return NextResponse.json({ analysis: fallbackAnalysis });
+    
+    // Deduct credits even for fallback response since we processed the request
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/ai-analyze',
+        5,
+        {
+          fallback: true,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      );
+      console.log(`💳 AI ANALYZE: Credits deducted for fallback. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ analysis: fallbackAnalysis });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 AI ANALYZE: Credit deduction failed for fallback:', deductionError);
+      // Still return fallback response but log the error
+      return NextResponse.json({ analysis: fallbackAnalysis });
+    }
   }
 }

@@ -24,6 +24,26 @@ const userSchema = new Schema(
 
     // Soft delete flag (flip on user.deleted)
     isDeleted: { type: Boolean, default: false },
+
+    // Credit system fields
+    credits: { type: Number, default: 200, min: 0 },
+    totalCreditsEarned: { type: Number, default: 200, min: 0 },
+    totalCreditsSpent: { type: Number, default: 0, min: 0 },
+    subscriptionTier: { 
+      type: String, 
+      enum: ['free', 'basic', 'premium', 'enterprise'], 
+      default: 'free' 
+    },
+    subscriptionStatus: { 
+      type: String, 
+      enum: ['active', 'inactive', 'cancelled', 'past_due'], 
+      default: 'inactive' 
+    },
+    lastCreditUpdate: { type: Date, default: Date.now },
+    
+    // Notification preferences
+    lowBalanceNotifications: { type: Boolean, default: true },
+    emailNotifications: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

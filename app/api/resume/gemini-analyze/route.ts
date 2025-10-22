@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware';
 
 interface ResumeAnalysis {
   strengths: string[];
@@ -18,6 +19,15 @@ interface ResumeAnalysis {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 GEMINI ANALYZE: Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request);
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 GEMINI ANALYZE: Credit validation passed for user ${userId}`);
   
   try {
     const { resumeText, jobDescription, originalFile } = await request.json();
@@ -123,7 +133,31 @@ Return your analysis in the following JSON format (return ONLY valid JSON, no ma
     }
     
     console.log('🎉 GEMINI ANALYZE: Sending successful response');
-    return NextResponse.json({ analysis });
+    
+    // Deduct credits after successful processing
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/gemini-analyze',
+        5,
+        {
+          resumeLength: resumeText?.length || 0,
+          jobDescriptionLength: jobDescription?.length || 0,
+          model: 'gemini-1.5-flash'
+        }
+      );
+      console.log(`💳 GEMINI ANALYZE: Credits deducted. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ analysis });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 GEMINI ANALYZE: Credit deduction failed:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({ analysis });
+    }
     
   } catch (error) {
     console.error('💥 GEMINI ANALYZE: Error occurred:', error);
@@ -146,6 +180,29 @@ Return your analysis in the following JSON format (return ONLY valid JSON, no ma
     };
     
     console.log('📤 GEMINI ANALYZE: Sending fallback response');
-    return NextResponse.json({ analysis: fallbackAnalysis });
+    
+    // Deduct credits even for fallback response since we processed the request
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/gemini-analyze',
+        5,
+        {
+          fallback: true,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      );
+      console.log(`💳 GEMINI ANALYZE: Credits deducted for fallback. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ analysis: fallbackAnalysis });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 GEMINI ANALYZE: Credit deduction failed for fallback:', deductionError);
+      // Still return fallback response but log the error
+      return NextResponse.json({ analysis: fallbackAnalysis });
+    }
   }
 }

@@ -375,71 +375,7 @@ export default function LandingPage() {
             </div>
           </section>
 
-          {/* Demo Preview Section */}
-          <section id="demo" className="w-full py-16 md:py-20 lg:py-24 bg-muted/30 relative overflow-hidden">
-            <div className="container px-4 md:px-6 relative max-w-6xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="flex flex-col items-center justify-center space-y-4 text-center mb-12"
-              >
-                <Badge className="rounded-full px-4 py-1.5 text-sm font-medium" variant="secondary">
-                  Demo Preview
-                </Badge>
-                <h2 className="text-2xl md:text-3xl lg:text-4xl font-sans font-bold tracking-tight text-balance">
-                  See the Transformation
-                </h2>
-                <p className="max-w-2xl text-muted-foreground md:text-lg text-pretty">
-                  Watch how our AI transforms generic resume content into compelling, results-driven achievements.
-                </p>
-              </motion.div>
-
-              <div className="grid lg:grid-cols-2 gap-8 mb-12">
-                <Card className="p-6 bg-gradient-to-b from-background to-muted/10">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <BarChart3 className="size-5 text-secondary" />
-                    JD-Match Score Growth
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Before Optimization</span>
-                      <span className="text-sm font-medium">42%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="bg-muted-foreground h-2 rounded-full" style={{ width: "42%" }}></div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">After Optimization</span>
-                      <span className="text-sm font-medium text-secondary">89%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="bg-secondary h-2 rounded-full" style={{ width: "89%" }}></div>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 bg-gradient-to-b from-background to-muted/10">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <TrendingUp className="size-5 text-secondary" />
-                    Callback Rate Improvement
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-secondary">3.2x</div>
-                      <div className="text-sm text-muted-foreground">Average increase in interview callbacks</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">67%</div>
-                      <div className="text-sm text-muted-foreground">Users land interviews within 2 weeks</div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </section>
-
+          
           {/* Trust Section */}
           <section className="w-full py-16 md:py-20 lg:py-24">
             <div className="container px-4 md:px-6 max-w-6xl mx-auto">

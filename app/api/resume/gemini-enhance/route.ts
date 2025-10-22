@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware';
 
 interface EnhancedResumeData {
   name: string;
@@ -26,6 +27,15 @@ interface EnhancedResumeData {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 GEMINI ENHANCE: Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request);
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 GEMINI ENHANCE: Credit validation passed for user ${userId}`);
   
   let resumeText = '';
   let jobDescription = '';
@@ -143,14 +153,59 @@ Return the enhanced resume in the following JSON format (return ONLY valid JSON,
       throw new Error('Failed to parse Gemini response as JSON');
     }
     
-    return NextResponse.json({ enhancedResume });
+    // Deduct credits after successful processing
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/gemini-enhance',
+        5,
+        {
+          resumeLength: resumeText?.length || 0,
+          jobDescriptionLength: jobDescription?.length || 0,
+          model: 'gemini-1.5-flash'
+        }
+      );
+      console.log(`💳 GEMINI ENHANCE: Credits deducted. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ enhancedResume });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 GEMINI ENHANCE: Credit deduction failed:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({ enhancedResume });
+    }
   } catch (error) {
     console.error('Error enhancing resume with Gemini:', error);
     
     // Return fallback enhanced resume using the resumeText from scope
     const fallbackResume: EnhancedResumeData = createFallbackResume(resumeText);
     
-    return NextResponse.json({ enhancedResume: fallbackResume });
+    // Deduct credits even for fallback response since we processed the request
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/gemini-enhance',
+        5,
+        {
+          fallback: true,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      );
+      console.log(`💳 GEMINI ENHANCE: Credits deducted for fallback. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ enhancedResume: fallbackResume });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '5');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 GEMINI ENHANCE: Credit deduction failed for fallback:', deductionError);
+      // Still return fallback response but log the error
+      return NextResponse.json({ enhancedResume: fallbackResume });
+    }
   }
 }
 
