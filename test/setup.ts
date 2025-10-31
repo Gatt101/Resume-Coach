@@ -1,5 +1,6 @@
 // Test setup file
 import { vi } from 'vitest';
+import '@testing-library/jest-dom';
 
 // Mock environment variables
 Object.defineProperty(process, 'env', {

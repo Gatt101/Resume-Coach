@@ -18,9 +18,19 @@ interface ResumeAnalysis {
 export async function POST(request: NextRequest) {
   console.log('🚀 AI ANALYZE: Request received');
   
-  // Apply credit middleware
+  // Apply credit middleware with enhanced error handling
   const creditCheck = await applyCreditMiddleware(request);
   if (!creditCheck.proceed) {
+    console.log('❌ AI ANALYZE: Credit validation failed');
+    
+    // Enhanced error response with user-friendly messages
+    const response = creditCheck.response!;
+    const errorData = await response.json().catch(() => ({}));
+    
+    if (errorData.error?.code === 'INSUFFICIENT_CREDITS') {
+      console.log(`💳 AI ANALYZE: Insufficient credits - Current: ${errorData.error.details?.currentBalance}, Required: ${errorData.error.details?.requiredCredits}`);
+    }
+    
     return creditCheck.response!;
   }
   
@@ -37,7 +47,47 @@ export async function POST(request: NextRequest) {
     if (!resumeText || !jobDescription) {
       console.log('❌ AI ANALYZE: Missing required fields');
       return NextResponse.json(
-        { error: 'Resume text and job description are required' },
+        { 
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Resume text and job description are required',
+            details: {
+              suggestedAction: 'Please provide both resume text and job description to analyze'
+            }
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    if (resumeText.length < 50) {
+      console.log('❌ AI ANALYZE: Resume text too short');
+      return NextResponse.json(
+        { 
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Resume text is too short for meaningful analysis',
+            details: {
+              suggestedAction: 'Please provide a more complete resume with at least 50 characters'
+            }
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    if (jobDescription.length < 20) {
+      console.log('❌ AI ANALYZE: Job description too short');
+      return NextResponse.json(
+        { 
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Job description is too short for meaningful analysis',
+            details: {
+              suggestedAction: 'Please provide a more detailed job description with at least 20 characters'
+            }
+          }
+        },
         { status: 400 }
       );
     }
@@ -45,8 +95,16 @@ export async function POST(request: NextRequest) {
     if (!process.env.OPENAI_API_KEY) {
       console.log('❌ AI ANALYZE: API key not configured');
       return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
+        { 
+          error: {
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'AI analysis service is temporarily unavailable',
+            details: {
+              suggestedAction: 'Please try again later or contact support if the issue persists'
+            }
+          }
+        },
+        { status: 503 }
       );
     }
 
@@ -124,9 +182,50 @@ export async function POST(request: NextRequest) {
         error: errorData
       });
       
-      // If it's a privacy policy error, throw specific error
+      // Enhanced error handling for different API failure scenarios
       if (response.status === 404 && errorData.error?.message?.includes('data policy')) {
-        throw new Error('Privacy policy configuration required. Please configure your data policy at https://openrouter.ai/settings/privacy');
+        return NextResponse.json(
+          { 
+            error: {
+              code: 'SERVICE_CONFIGURATION_ERROR',
+              message: 'AI service configuration issue detected',
+              details: {
+                suggestedAction: 'Please try again later. If the issue persists, contact support.'
+              }
+            }
+          },
+          { status: 503 }
+        );
+      }
+      
+      if (response.status === 429) {
+        return NextResponse.json(
+          { 
+            error: {
+              code: 'RATE_LIMIT_EXCEEDED',
+              message: 'Too many requests. Please wait a moment before trying again.',
+              details: {
+                suggestedAction: 'Wait a few minutes and try your request again'
+              }
+            }
+          },
+          { status: 429 }
+        );
+      }
+      
+      if (response.status >= 500) {
+        return NextResponse.json(
+          { 
+            error: {
+              code: 'AI_SERVICE_ERROR',
+              message: 'AI analysis service is temporarily unavailable',
+              details: {
+                suggestedAction: 'Please try again in a few minutes'
+              }
+            }
+          },
+          { status: 503 }
+        );
       }
       
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
@@ -144,7 +243,18 @@ export async function POST(request: NextRequest) {
     
     if (!content) {
       console.log('❌ AI ANALYZE: No content received from API');
-      throw new Error('No content received from API');
+      return NextResponse.json(
+        { 
+          error: {
+            code: 'AI_RESPONSE_ERROR',
+            message: 'AI service returned an empty response',
+            details: {
+              suggestedAction: 'Please try your request again'
+            }
+          }
+        },
+        { status: 502 }
+      );
     }
 
     // Parse JSON response
@@ -172,7 +282,18 @@ export async function POST(request: NextRequest) {
     } catch (parseError) {
       console.error('❌ AI ANALYZE: JSON parse error:', parseError);
       console.log('Raw content:', content);
-      throw new Error('Failed to parse AI response as JSON');
+      return NextResponse.json(
+        { 
+          error: {
+            code: 'AI_RESPONSE_PARSE_ERROR',
+            message: 'Unable to process AI analysis response',
+            details: {
+              suggestedAction: 'Please try your request again. If the issue persists, contact support.'
+            }
+          }
+        },
+        { status: 502 }
+      );
     }
     
     console.log('🎉 AI ANALYZE: Sending successful response');
@@ -204,6 +325,12 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('💥 AI ANALYZE: Error occurred:', error);
+    
+    // Check if it's already a formatted error response
+    if (error instanceof Response) {
+      return error;
+    }
+    
     console.log('🔄 AI ANALYZE: Returning fallback analysis');
     
     // Return fallback analysis

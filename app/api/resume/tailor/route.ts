@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { GetUserResumes } from '@/lib/actions/resume.action'
 import { inngest } from '@/inngest/client'
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware'
 
 // Initialize Gemini AI with error handling
 let genAI: GoogleGenerativeAI | null = null;
@@ -23,7 +24,7 @@ async function retryWithBackoff<T>(
     baseDelay: number = 1000,
     maxDelay: number = 10000
 ): Promise<T> {
-    let lastError: Error;
+    let lastError: Error | undefined;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -52,7 +53,7 @@ async function retryWithBackoff<T>(
         }
     }
 
-    throw lastError;
+    throw lastError || new Error('Retry failed with unknown error');
 }
 
 // Rate limiter for tailoring requests
@@ -75,12 +76,18 @@ function checkTailorRateLimit(userId: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-    try {
-        const { userId } = await auth()
+    console.log('🚀 RESUME TAILOR: Request received');
+    
+    // Apply credit middleware
+    const creditCheck = await applyCreditMiddleware(req, 7); // Resume tailoring costs 7 credits
+    if (!creditCheck.proceed) {
+        return creditCheck.response!;
+    }
+    
+    const userId = creditCheck.userId!;
+    console.log(`💳 RESUME TAILOR: Credit validation passed for user ${userId}`);
 
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+    try {
 
         // Check rate limit for tailoring
         if (!checkTailorRateLimit(userId)) {
@@ -164,20 +171,57 @@ export async function POST(req: NextRequest) {
             processingMethod = 'fallback-after-error';
         }
 
-        return NextResponse.json({
-            success: true,
-            resume: tailoredResume,
-            processing: {
-                method: processingMethod,
-                aiProcessing: processingMethod.includes('ai'),
-                timestamp: new Date().toISOString()
-            },
-            optimizationScore: tailoredResume.metadata?.optimizationScore || 0,
-            keywordsAdded: tailoredResume.metadata?.keywordsAdded || [],
-            message: processingMethod === 'ai-gemini'
-                ? 'Resume successfully tailored with AI-powered keyword optimization and ATS enhancement!'
-                : 'Resume tailored using enhanced keyword matching and optimization techniques!'
-        })
+        // Deduct credits after successful tailoring
+        try {
+            const deductionResult = await deductCreditsAfterSuccess(
+                userId,
+                '/api/resume/tailor',
+                7,
+                {
+                    resumeId: actualResumeId,
+                    jobDescriptionLength: jobDescription?.length || 0,
+                    processingMethod,
+                    keywordsAdded: tailoredResume.metadata?.keywordsAdded?.length || 0
+                }
+            );
+            console.log(`💳 RESUME TAILOR: Credits deducted. New balance: ${deductionResult.newBalance}`);
+            
+            const response = NextResponse.json({
+                success: true,
+                resume: tailoredResume,
+                processing: {
+                    method: processingMethod,
+                    aiProcessing: processingMethod.includes('ai'),
+                    timestamp: new Date().toISOString()
+                },
+                optimizationScore: tailoredResume.metadata?.optimizationScore || 0,
+                keywordsAdded: tailoredResume.metadata?.keywordsAdded || [],
+                message: processingMethod === 'ai-gemini'
+                    ? 'Resume successfully tailored with AI-powered keyword optimization and ATS enhancement!'
+                    : 'Resume tailored using enhanced keyword matching and optimization techniques!'
+            });
+            response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+            response.headers.set('X-Credits-Deducted', '7');
+            response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+            return response;
+        } catch (deductionError) {
+            console.error('💥 RESUME TAILOR: Credit deduction failed:', deductionError);
+            // Still return successful response but log the error
+            return NextResponse.json({
+                success: true,
+                resume: tailoredResume,
+                processing: {
+                    method: processingMethod,
+                    aiProcessing: processingMethod.includes('ai'),
+                    timestamp: new Date().toISOString()
+                },
+                optimizationScore: tailoredResume.metadata?.optimizationScore || 0,
+                keywordsAdded: tailoredResume.metadata?.keywordsAdded || [],
+                message: processingMethod === 'ai-gemini'
+                    ? 'Resume successfully tailored with AI-powered keyword optimization and ATS enhancement!'
+                    : 'Resume tailored using enhanced keyword matching and optimization techniques!'
+            });
+        }
 
     } catch (error: any) {
         console.error('Error tailoring resume:', error)

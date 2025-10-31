@@ -367,6 +367,52 @@ export class CreditService {
       return false;
     }
   }
+
+  /**
+   * Update user subscription information
+   */
+  async updateUserSubscription(
+    userId: string, 
+    subscriptionData: {
+      subscriptionTier?: 'free' | 'basic' | 'premium' | 'enterprise';
+      subscriptionStatus?: 'active' | 'inactive' | 'cancelled' | 'past_due';
+    }
+  ): Promise<void> {
+    try {
+      await connect();
+      
+      const user = await User.findOne({ clerkId: userId });
+      if (!user) {
+        throw new CreditError(`User not found: ${userId}`, CreditErrorCodes.USER_NOT_FOUND, userId);
+      }
+
+      const updateData: any = {
+        lastCreditUpdate: new Date()
+      };
+
+      if (subscriptionData.subscriptionTier) {
+        updateData.subscriptionTier = subscriptionData.subscriptionTier;
+      }
+
+      if (subscriptionData.subscriptionStatus) {
+        updateData.subscriptionStatus = subscriptionData.subscriptionStatus;
+      }
+
+      await User.updateOne(
+        { clerkId: userId },
+        { $set: updateData }
+      );
+    } catch (error) {
+      if (error instanceof CreditError) {
+        throw error;
+      }
+      throw new CreditError(
+        `Failed to update user subscription: ${(error as Error).message}`,
+        CreditErrorCodes.TRANSACTION_FAILED,
+        userId
+      );
+    }
+  }
 }
 
 // Custom error class for credit operations

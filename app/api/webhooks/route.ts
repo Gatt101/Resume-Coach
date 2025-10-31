@@ -1,6 +1,8 @@
 import { verifyWebhook } from '@clerk/nextjs/webhooks'
 import { NextRequest } from 'next/server'
 import { CreateUser, UpdateUser, DeleteUser } from '@/lib/actions/user.action'
+import { subscriptionService, ClerkSubscriptionEvent } from '@/lib/services/subscription-service'
+import { creditService } from '@/lib/services/credit-service'
 
 // Types for webhook data - matching Clerk's actual webhook structure
 interface ClerkWebhookData {
@@ -56,9 +58,28 @@ export async function POST(req: NextRequest) {
           const userData = extractUserData(clerkData)
           const newUser = await CreateUser(userData)
           console.log('User created successfully:', newUser._id)
+          
+          // Allocate initial 200 credits for new user
+          try {
+            await creditService.addCredits(
+              clerkData.id,
+              200,
+              'Initial credit allocation for new user',
+              { 
+                source: 'user_registration',
+                registrationDate: new Date().toISOString()
+              }
+            )
+            console.log('Initial credits allocated successfully for user:', clerkData.id)
+          } catch (creditError) {
+            console.error('Error allocating initial credits:', creditError)
+            // Don't fail the user creation if credit allocation fails
+            // This ensures user can still be created even if credit system has issues
+          }
+          
           return new Response(JSON.stringify({ 
             success: true, 
-            message: 'User created successfully',
+            message: 'User created successfully with initial credits',
             userId: newUser._id 
           }), { 
             status: 200,
@@ -116,6 +137,95 @@ export async function POST(req: NextRequest) {
           })
         } catch (error) {
           console.error('Error deleting user:', error)
+          throw error
+        }
+      }
+
+      case 'subscription.created': {
+        console.log('Processing subscription created')
+        try {
+          const subscriptionEvent = evt as ClerkSubscriptionEvent
+          await subscriptionService.handleSubscriptionCreated(
+            subscriptionEvent.data.user_id,
+            subscriptionEvent.data
+          )
+          console.log('Subscription created successfully')
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Subscription created successfully' 
+          }), { 
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        } catch (error) {
+          console.error('Error processing subscription created:', error)
+          throw error
+        }
+      }
+
+      case 'subscription.updated': {
+        console.log('Processing subscription updated')
+        try {
+          const subscriptionEvent = evt as ClerkSubscriptionEvent
+          await subscriptionService.handleSubscriptionUpdated(
+            subscriptionEvent.data.user_id,
+            subscriptionEvent.data
+          )
+          console.log('Subscription updated successfully')
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Subscription updated successfully' 
+          }), { 
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        } catch (error) {
+          console.error('Error processing subscription updated:', error)
+          throw error
+        }
+      }
+
+      case 'subscription.deleted':
+      case 'subscription.cancelled': {
+        console.log('Processing subscription cancelled')
+        try {
+          const subscriptionEvent = evt as ClerkSubscriptionEvent
+          await subscriptionService.handleSubscriptionCancelled(
+            subscriptionEvent.data.user_id,
+            subscriptionEvent.data
+          )
+          console.log('Subscription cancelled successfully')
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Subscription cancelled successfully' 
+          }), { 
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        } catch (error) {
+          console.error('Error processing subscription cancelled:', error)
+          throw error
+        }
+      }
+
+      case 'invoice.payment_failed': {
+        console.log('Processing payment failed')
+        try {
+          const subscriptionEvent = evt as ClerkSubscriptionEvent
+          await subscriptionService.handlePaymentFailed(
+            subscriptionEvent.data.user_id,
+            subscriptionEvent.data
+          )
+          console.log('Payment failed processed successfully')
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Payment failed processed successfully' 
+          }), { 
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        } catch (error) {
+          console.error('Error processing payment failed:', error)
           throw error
         }
       }

@@ -2,6 +2,7 @@
 
 import User from "@/models/user";
 import { connect } from "@/lib/mongoose";
+import { creditService } from "@/lib/services/credit-service";
 
 // Types for better type safety
 interface UserData {
@@ -25,6 +26,26 @@ export async function CreateUser(userData: UserData) {
     const existingUser = await User.findOne({ clerkId: userData.clerkId, isDeleted: { $ne: true } });
     if (existingUser) {
       console.log('User already exists:', existingUser._id);
+      
+      // Ensure existing user has initial credits if they don't have any
+      if (existingUser.credits === 0 && existingUser.totalCreditsEarned === 0) {
+        try {
+          await creditService.addCredits(
+            userData.clerkId,
+            200,
+            'Initial credit allocation for existing user without credits',
+            { 
+              source: 'user_creation_backfill',
+              backfillDate: new Date().toISOString()
+            }
+          );
+          console.log('Backfilled initial credits for existing user:', userData.clerkId);
+        } catch (creditError) {
+          console.error('Error backfilling credits for existing user:', creditError);
+          // Don't fail user creation for credit allocation issues
+        }
+      }
+      
       return JSON.parse(JSON.stringify(existingUser));
     }
 
@@ -35,6 +56,28 @@ export async function CreateUser(userData: UserData) {
 
     const newUser = await User.create(userData);
     console.log('User created successfully:', newUser._id);
+    
+    // Ensure the user has initial credits (fallback if webhook fails)
+    try {
+      const currentCredits = await creditService.getUserCredits(userData.clerkId);
+      if (currentCredits === 0) {
+        await creditService.addCredits(
+          userData.clerkId,
+          200,
+          'Initial credit allocation fallback',
+          { 
+            source: 'user_creation_fallback',
+            creationDate: new Date().toISOString()
+          }
+        );
+        console.log('Fallback initial credits allocated for user:', userData.clerkId);
+      }
+    } catch (creditError) {
+      console.error('Error in fallback credit allocation:', creditError);
+      // Don't fail user creation for credit allocation issues
+      // The user model already has default credits set to 200
+    }
+    
     return JSON.parse(JSON.stringify(newUser));
   } catch (error) {
     console.error('Error creating user:', error);

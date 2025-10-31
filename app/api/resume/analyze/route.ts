@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { inngest } from '@/inngest/client';
 import { GetResumeById, GetUserResumes } from '@/lib/actions/resume.action';
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware';
 
 
 interface AnalysisResult {
@@ -200,15 +201,18 @@ function performBasicAnalysis(resumeData: any, jobDescription?: string): Analysi
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 RESUME ANALYZE: Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request, 6); // Resume analysis costs 6 credits
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 RESUME ANALYZE: Credit validation passed for user ${userId}`);
+
   try {
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please sign in' }, 
-        { status: 401 }
-      );
-    }
 
     const body = await request.json();
     const { resumeId, jobDescription } = body;
@@ -257,13 +261,42 @@ export async function POST(request: NextRequest) {
       analysisResult = performBasicAnalysis(resume.data, jobDescription);
     }
 
-    return NextResponse.json({
-      success: true,
-      analysis: analysisResult,
-      resumeTitle: resume.title,
-      aiProcessing: true, // Indicates AI analysis is running in background
-      message: "Analysis complete. Enhanced AI insights may be available shortly."
-    });
+    // Deduct credits after successful analysis
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/analyze',
+        6,
+        {
+          resumeId,
+          hasJobDescription: !!jobDescription,
+          jobDescriptionLength: jobDescription?.length || 0
+        }
+      );
+      console.log(`💳 RESUME ANALYZE: Credits deducted. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({
+        success: true,
+        analysis: analysisResult,
+        resumeTitle: resume.title,
+        aiProcessing: true, // Indicates AI analysis is running in background
+        message: "Analysis complete. Enhanced AI insights may be available shortly."
+      });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '6');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 RESUME ANALYZE: Credit deduction failed:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({
+        success: true,
+        analysis: analysisResult,
+        resumeTitle: resume.title,
+        aiProcessing: true, // Indicates AI analysis is running in background
+        message: "Analysis complete. Enhanced AI insights may be available shortly."
+      });
+    }
 
   } catch (error) {
     console.error('Resume analysis error:', error);

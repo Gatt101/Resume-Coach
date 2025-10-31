@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { inngest } from '@/inngest/client'
+import { applyCreditMiddleware, deductCreditsAfterSuccess } from '@/lib/middleware/credit-middleware'
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 RESUME GENERATE: Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request, 10); // Resume generation costs 10 credits
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 RESUME GENERATE: Credit validation passed for user ${userId}`);
+
   try {
     const { description, template, targetRole, experienceLevel, preferSync = true } = await request.json()
 
@@ -16,12 +28,43 @@ export async function POST(request: NextRequest) {
     if (preferSync) {
       try {
         const resumeData = await generateResumeSync(description, template, targetRole, experienceLevel)
-        return NextResponse.json({ 
-          success: true,
-          resume: resumeData,
-          generatedAt: new Date().toISOString(),
-          processingTime: 'immediate'
-        })
+        
+        // Deduct credits after successful generation
+        try {
+          const deductionResult = await deductCreditsAfterSuccess(
+            userId,
+            '/api/resume/generate',
+            10,
+            {
+              descriptionLength: description?.length || 0,
+              template,
+              targetRole,
+              experienceLevel,
+              mode: 'synchronous'
+            }
+          );
+          console.log(`💳 RESUME GENERATE: Credits deducted. New balance: ${deductionResult.newBalance}`);
+          
+          const response = NextResponse.json({ 
+            success: true,
+            resume: resumeData,
+            generatedAt: new Date().toISOString(),
+            processingTime: 'immediate'
+          });
+          response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+          response.headers.set('X-Credits-Deducted', '10');
+          response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+          return response;
+        } catch (deductionError) {
+          console.error('💥 RESUME GENERATE: Credit deduction failed:', deductionError);
+          // Still return successful response but log the error
+          return NextResponse.json({ 
+            success: true,
+            resume: resumeData,
+            generatedAt: new Date().toISOString(),
+            processingTime: 'immediate'
+          });
+        }
       } catch (syncError) {
         console.error('Synchronous generation failed, falling back to async:', syncError)
         // Fall through to async processing
@@ -39,13 +82,45 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ 
-      success: true,
-      eventId: result.ids[0],
-      message: 'Resume generation started. Check status with the event ID.',
-      status: 'processing',
-      statusUrl: `/api/resume/status/${result.ids[0]}`
-    })
+    // Deduct credits for async processing as well
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/generate',
+        10,
+        {
+          descriptionLength: description?.length || 0,
+          template: template || 'modern',
+          targetRole: targetRole || 'general',
+          experienceLevel: experienceLevel || 'mid',
+          mode: 'asynchronous',
+          eventId: result.ids[0]
+        }
+      );
+      console.log(`💳 RESUME GENERATE: Credits deducted for async. New balance: ${deductionResult.newBalance}`);
+
+      const response = NextResponse.json({ 
+        success: true,
+        eventId: result.ids[0],
+        message: 'Resume generation started. Check status with the event ID.',
+        status: 'processing',
+        statusUrl: `/api/resume/status/${result.ids[0]}`
+      });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '10');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 RESUME GENERATE: Credit deduction failed for async:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({ 
+        success: true,
+        eventId: result.ids[0],
+        message: 'Resume generation started. Check status with the event ID.',
+        status: 'processing',
+        statusUrl: `/api/resume/status/${result.ids[0]}`
+      });
+    }
 
   } catch (error) {
     console.error('Error generating resume:', error)
@@ -58,6 +133,17 @@ export async function POST(request: NextRequest) {
 
 // Alternative synchronous endpoint for immediate results
 export async function PUT(request: NextRequest) {
+  console.log('🚀 RESUME GENERATE (PUT): Request received');
+  
+  // Apply credit middleware
+  const creditCheck = await applyCreditMiddleware(request, 10); // Resume generation costs 10 credits
+  if (!creditCheck.proceed) {
+    return creditCheck.response!;
+  }
+  
+  const userId = creditCheck.userId!;
+  console.log(`💳 RESUME GENERATE (PUT): Credit validation passed for user ${userId}`);
+
   try {
     const { description, template, targetRole, experienceLevel } = await request.json()
 
@@ -71,10 +157,38 @@ export async function PUT(request: NextRequest) {
     // For immediate response, we can call the resume generation logic directly
     const resumeData = await generateResumeSync(description, template, targetRole, experienceLevel)
 
-    return NextResponse.json({ 
-      success: true,
-      resume: resumeData 
-    })
+    // Deduct credits after successful generation
+    try {
+      const deductionResult = await deductCreditsAfterSuccess(
+        userId,
+        '/api/resume/generate',
+        10,
+        {
+          descriptionLength: description?.length || 0,
+          template,
+          targetRole,
+          experienceLevel,
+          method: 'PUT'
+        }
+      );
+      console.log(`💳 RESUME GENERATE (PUT): Credits deducted. New balance: ${deductionResult.newBalance}`);
+      
+      const response = NextResponse.json({ 
+        success: true,
+        resume: resumeData 
+      });
+      response.headers.set('X-Credits-Remaining', deductionResult.newBalance.toString());
+      response.headers.set('X-Credits-Deducted', '10');
+      response.headers.set('X-Transaction-Id', deductionResult.transactionId);
+      return response;
+    } catch (deductionError) {
+      console.error('💥 RESUME GENERATE (PUT): Credit deduction failed:', deductionError);
+      // Still return successful response but log the error
+      return NextResponse.json({ 
+        success: true,
+        resume: resumeData 
+      });
+    }
 
   } catch (error) {
     console.error('Error generating resume:', error)
