@@ -1,12 +1,11 @@
 "use client"
-import Hero1 from "@/components/Hero1"
+import HeroScrollDemo from "@/components/container-scroll-animation-demo"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { NavbarDemo } from "@/components/ui/MarketingNavbar"
 import { motion } from "framer-motion"
-import { GradientButton } from "@/components/ui/gradient-button"
 import {
   ArrowRight,
   BarChart3,
@@ -206,7 +205,7 @@ export default function LandingPage() {
                 Log in
               </Link>
               <Button className="rounded-full bg-secondary text-white hover:bg-secondary/90">
-                Get Started
+                Get Started Free
                 <ChevronRight className="ml-1 size-4" />
               </Button>
             </div>
@@ -259,7 +258,61 @@ export default function LandingPage() {
           <section className="w-full relative overflow-hidden">
             <div className="absolute inset-0 -z-10 h-full w-full bg-white dark:bg-black bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1f1f1f_1px,transparent_1px),linear-gradient(to_bottom,#1f1f1f_1px,transparent_1px)] bg-[size:6rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
 
-            <Hero1 />
+            <HeroScrollDemo />
+
+            {/* CTA Section */}
+            <div className="container px-4 md:px-6 relative max-w-5xl mx-auto pb-16 -mt-32">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="flex flex-col items-center justify-center space-y-6 text-center"
+              >
+                <Badge
+                  className="rounded-full px-4 py-1.5 text-sm font-medium bg-secondary text-white border-secondary/20"
+                  variant="outline"
+                >
+                  AI-Powered Career Assistant
+                </Badge>
+
+                <p className="max-w-2xl text-muted-foreground md:text-lg lg:text-xl text-pretty leading-relaxed">
+                  Upload your resume, paste a job description, and let AI optimize your CV, close your skill gaps, and
+                  craft a growth path tailored for you.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 mt-8">
+                  <Button
+                    size="lg"
+                    className="rounded-full h-12 px-8 text-base bg-secondary text-white hover:bg-secondary/90"
+                    onClick={
+                      () =>{router.push("/dashboard")}
+                    }
+                  >
+                    Get Started Free
+                    <ArrowRight className="ml-2 size-4" />
+                  </Button>
+                  <Button size="lg" variant="outline" className="rounded-full h-12 px-8 text-base bg-transparent">
+                    See Demo
+                    <Eye className="ml-2 size-4" />
+                  </Button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 text-sm text-muted-foreground mt-6">
+                  <div className="flex items-center gap-2">
+                    <Check className="size-4 text-secondary" />
+                    <span>No credit card</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="size-4 text-secondary" />
+                    <span>Free forever plan</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="size-4 text-secondary" />
+                    <span>Instant results</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           </section>
 
           {/* How It Works Section */}
