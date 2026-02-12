@@ -3,6 +3,9 @@ import { auth } from "@clerk/nextjs/server";
 import { ocrService, type OCRResult, type OCRError } from "@/lib/services/ocr-service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_REQUEST_OPTIONS = { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" };
+
 // Initialize Gemini AI for resume parsing
 let genAI: GoogleGenerativeAI | null = null;
 try {
@@ -88,7 +91,10 @@ export async function POST(req: NextRequest) {
         console.log("Parsing extracted text with Gemini AI...");
 
         structuredData = await retryApiCall(async () => {
-          const model = genAI!.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const model = genAI!.getGenerativeModel(
+            { model: GEMINI_MODEL },
+            GEMINI_REQUEST_OPTIONS
+          );
           const parsePrompt = `Extract resume information and return ONLY valid JSON. No explanations, no markdown, no extra text.
 
 REQUIRED JSON FORMAT:

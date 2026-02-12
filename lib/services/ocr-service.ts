@@ -1,6 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_REQUEST_OPTIONS = { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" };
+
 // Initialize Gemini AI
 let genAI: GoogleGenerativeAI | null = null;
 try {
@@ -153,7 +156,10 @@ export class EnhancedOCRService {
 
         try {
             const extractedText = await this.retryWithBackoff(async () => {
-                const model = genAI!.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const model = genAI!.getGenerativeModel(
+                    { model: GEMINI_MODEL },
+                    GEMINI_REQUEST_OPTIONS
+                );
 
                 const result = await model.generateContent([
                     `You are an expert OCR system. Extract ALL text from this resume document with maximum accuracy.
