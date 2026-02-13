@@ -11,7 +11,10 @@ import {
     NavBody,
     NavItems,
 } from "@/components/ui/resizable-navbar";
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 
 export function NavbarDemo() {
@@ -31,6 +34,16 @@ export function NavbarDemo() {
   ];
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
   return (
     <div className="relative w-full">
@@ -39,9 +52,12 @@ export function NavbarDemo() {
         <NavBody>
           <NavbarLogo />
           <NavItems items={navItems} />
-          <div className="flex items-center gap-4">
-            <NavbarButton variant="secondary">Login</NavbarButton>
-            <NavbarButton variant="primary">Book a call</NavbarButton>
+          <div className="relative z-20 flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full" aria-label="Toggle theme">
+              {mounted && theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
+            <NavbarButton href="/login" variant="secondary">Login</NavbarButton>
+            <NavbarButton href="/login" variant="primary">Book a call</NavbarButton>
           </div>
         </NavBody>
 
@@ -69,8 +85,12 @@ export function NavbarDemo() {
                 <span className="block">{item.name}</span>
               </a>
             ))}
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full" aria-label="Toggle theme">
+              {mounted && theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
             <div className="flex w-full flex-col gap-4">
               <NavbarButton
+                href="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
                 variant="primary"
                 className="w-full"
@@ -78,6 +98,7 @@ export function NavbarDemo() {
                 Login
               </NavbarButton>
               <NavbarButton
+                href="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
                 variant="primary"
                 className="w-full"

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const ZAI_API_URL = process.env.ZAI_API_URL || 'https://api.z.ai/api/paas/v4/chat/completions';
+const ZAI_MODEL = process.env.ZAI_MODEL || 'glm-4.7';
+const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.OPENAI_API_KEY;
+
 interface ResumeAnalysis {
   strengths: string[];
   weaknesses: string[];
@@ -32,10 +36,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!ZAI_API_KEY) {
       console.log('❌ AI ANALYZE: API key not configured');
       return NextResponse.json(
-        { error: 'API key not configured' },
+        { error: 'Z AI API key not configured' },
         { status: 500 }
       );
     }
@@ -43,7 +47,7 @@ export async function POST(request: NextRequest) {
     console.log('🔑 AI ANALYZE: API key found, preparing request');
     
     const requestBody = {
-      model: "openai/gpt-oss-20b:free",
+      model: ZAI_MODEL,
       messages: [
         {
           role: 'system',
@@ -83,20 +87,17 @@ export async function POST(request: NextRequest) {
       max_tokens: 2000
     };
 
-    console.log('📤 AI ANALYZE: Sending request to OpenRouter');
+    console.log('📤 AI ANALYZE: Sending request to Z AI');
     console.log('- Model:', requestBody.model);
     console.log('- Messages count:', requestBody.messages.length);
     console.log('- Temperature:', requestBody.temperature);
     console.log('- Max tokens:', requestBody.max_tokens);
 
-    // Try direct fetch approach with proper OpenRouter configuration
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(ZAI_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${ZAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://nexcv-coach.com',
-        'X-Title': 'NexCV Coach',
       },
       body: JSON.stringify(requestBody)
     });
@@ -108,17 +109,12 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('❌ AI ANALYZE: OpenRouter API Error:', {
+      console.error('❌ AI ANALYZE: Z AI API Error:', {
         status: response.status,
         statusText: response.statusText,
         error: errorData
       });
-      
-      // If it's a privacy policy error, throw specific error
-      if (response.status === 404 && errorData.error?.message?.includes('data policy')) {
-        throw new Error('Privacy policy configuration required. Please configure your data policy at https://openrouter.ai/settings/privacy');
-      }
-      
+
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 

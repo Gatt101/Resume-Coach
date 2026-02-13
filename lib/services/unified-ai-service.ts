@@ -50,7 +50,7 @@ class UnifiedAIService {
   async analyzeResume(
     resumeText: string, 
     jobDescription: string, 
-    provider: AIProvider = 'gemini',
+    provider: AIProvider = 'openai',
     originalFile?: File
   ): Promise<UnifiedResumeAnalysis> {
     console.log(`🔍 UNIFIED AI: Starting analysis with ${provider.toUpperCase()}`);
@@ -66,7 +66,7 @@ class UnifiedAIService {
         const result = await aiResumeService.analyzeResume(resumeText, jobDescription);
         return {
           ...result,
-          atsScore: undefined, // OpenAI doesn't provide ATS score
+          atsScore: undefined, // Z AI path does not provide ATS score
           provider: 'openai'
         };
       }
@@ -118,7 +118,7 @@ class UnifiedAIService {
   async enhanceResume(
     resumeText: string, 
     jobDescription: string, 
-    provider: AIProvider = 'gemini'
+    provider: AIProvider = 'openai'
   ): Promise<UnifiedEnhancedResumeData> {
     console.log(`🚀 UNIFIED AI: Starting enhancement with ${provider.toUpperCase()}`);
     
@@ -185,14 +185,14 @@ class UnifiedAIService {
   }
 
   getProviderDisplayName(provider: AIProvider): string {
-    return provider === 'gemini' ? 'Gemini AI' : 'OpenAI GPT';
+    return provider === 'gemini' ? 'Gemini AI' : 'Z AI (GLM-4.7)';
   }
 
   getProviderFeatures(provider: AIProvider): string[] {
     if (provider === 'gemini') {
       return ['ATS Compatibility Analysis', 'Document Structure Analysis', 'Advanced Content Optimization'];
     } else {
-      return ['Advanced Language Processing', 'Creative Content Enhancement', 'Industry-Specific Optimization'];
+      return ['GLM-4.7 Reasoning', 'High-Speed Content Enhancement', 'Industry-Specific Optimization'];
     }
   }
 }

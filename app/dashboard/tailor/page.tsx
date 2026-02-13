@@ -16,7 +16,6 @@ import {
     FileDown,
     FileText,
     Loader2,
-    Settings,
     Sparkles,
     Target,
     Upload,
@@ -106,7 +105,7 @@ export default function TailorPage() {
   // AI Analysis state
   const [aiAnalysis, setAiAnalysis] = useState<UnifiedResumeAnalysis | null>(null);
   const [enhancedResumeData, setEnhancedResumeData] = useState<UnifiedEnhancedResumeData | null>(null);
-  const [selectedAIProvider, setSelectedAIProvider] = useState<AIProvider>('gemini');
+  const selectedAIProvider: AIProvider = 'openai';
   const [isDownloading, setIsDownloading] = useState(false);
 
   // Utility: Build plain text resume from enhanced structured data
@@ -596,77 +595,6 @@ export default function TailorPage() {
                     </CardContent>
                   </Card>
                 </motion.div>
-              </motion.div>
-
-              {/* AI Provider Selection */}
-              <motion.div 
-                className="flex justify-center"
-                variants={itemVariants}
-              >
-                <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-3 text-lg">
-                      <div className="p-2 bg-indigo-600/20 rounded-lg">
-                        <Settings className="w-5 h-5 text-indigo-400" />
-                      </div>
-                      Choose AI Provider
-                    </CardTitle>
-                    <p className="text-gray-400 text-sm">Select your preferred AI engine for analysis and tailoring</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Button
-                          onClick={() => setSelectedAIProvider('gemini')}
-                          variant={selectedAIProvider === 'gemini' ? 'default' : 'outline'}
-                          className={`w-full h-auto p-4 flex flex-col items-center gap-2 ${
-                            selectedAIProvider === 'gemini' 
-                              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0' 
-                              : 'border-gray-600 text-gray-300 hover:border-blue-500'
-                          }`}
-                        >
-                          <Bot className="w-6 h-6" />
-                          <div className="text-center">
-                            <div className="font-semibold">Gemini AI</div>
-                            <div className="text-xs opacity-80">ATS Analysis • Structure Check</div>
-                          </div>
-                        </Button>
-                      </div>
-
-                      <div>
-                        <Button
-                          onClick={() => setSelectedAIProvider('openai')}
-                          variant={selectedAIProvider === 'openai' ? 'default' : 'outline'}
-                          className={`w-full h-auto p-4 flex flex-col items-center gap-2 ${
-                            selectedAIProvider === 'openai' 
-                              ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0' 
-                              : 'border-gray-600 text-gray-300 hover:border-green-500'
-                          }`}
-                        >
-                          <Zap className="w-6 h-6" />
-                          <div className="text-center">
-                            <div className="font-semibold">OpenAI GPT</div>
-                            <div className="text-xs opacity-80">Creative Enhancement • Industry Focus</div>
-                          </div>
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 p-3 bg-gray-900/50 rounded-lg">
-                      <div className="text-sm text-gray-300 font-medium mb-2">
-                        {unifiedAIService.getProviderDisplayName(selectedAIProvider)} Features:
-                      </div>
-                      <ul className="text-xs text-gray-400 space-y-1">
-                        {unifiedAIService.getProviderFeatures(selectedAIProvider).map((feature, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
               </motion.div>
 
               {/* Enhanced Action Buttons */}

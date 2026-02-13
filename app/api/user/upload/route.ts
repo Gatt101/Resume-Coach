@@ -1,20 +1,10 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { ocrService, type OCRResult, type OCRError } from "@/lib/services/ocr-service";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const GEMINI_REQUEST_OPTIONS = { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" };
-
-// Initialize Gemini AI for resume parsing
-let genAI: GoogleGenerativeAI | null = null;
-try {
-  if (process.env.GEMINI_API_KEY) {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  }
-} catch (error) {
-  console.error("Error initializing Gemini AI:", error);
-}
+const ZAI_API_URL = process.env.ZAI_API_URL || "https://api.z.ai/api/paas/v4/chat/completions";
+const ZAI_MODEL = process.env.ZAI_MODEL || "glm-4.7";
+const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.OPENAI_API_KEY;
 
 // Retry utility for AI parsing
 async function retryApiCall<T>(
@@ -25,8 +15,9 @@ async function retryApiCall<T>(
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
-      if (error.message?.includes('401') || error.message?.includes('403')) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('401') || message.includes('403')) {
         throw error;
       }
       if (attempt === maxRetries - 1) throw error;
@@ -36,6 +27,35 @@ async function retryApiCall<T>(
     }
   }
   throw new Error('Max retries exceeded');
+}
+
+function extractJsonFromModelOutput(rawOutput: string): unknown {
+  let jsonText = rawOutput.trim();
+
+  if (jsonText.startsWith('```json')) {
+    jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  const startIndex = jsonText.indexOf('{');
+  const lastIndex = jsonText.lastIndexOf('}');
+
+  if (startIndex === -1 || lastIndex === -1 || startIndex >= lastIndex) {
+    throw new Error("No valid JSON object found in AI response");
+  }
+
+  const jsonString = jsonText.substring(startIndex, lastIndex + 1);
+  const cleanedJson = jsonString
+    .replace(/,\s*}/g, '}')
+    .replace(/,\s*]/g, ']')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/\t/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  return JSON.parse(cleanedJson);
 }
 
 export async function POST(req: NextRequest) {
@@ -87,14 +107,10 @@ export async function POST(req: NextRequest) {
     // Parse extracted text into structured resume data
     let structuredData;
     try {
-      if (ocrResult.extractedText && ocrResult.extractedText.trim().length > 50 && genAI) {
-        console.log("Parsing extracted text with Gemini AI...");
+      if (ocrResult.extractedText && ocrResult.extractedText.trim().length > 50 && ZAI_API_KEY) {
+        console.log("Parsing extracted text with Z AI...");
 
         structuredData = await retryApiCall(async () => {
-          const model = genAI!.getGenerativeModel(
-            { model: GEMINI_MODEL },
-            GEMINI_REQUEST_OPTIONS
-          );
           const parsePrompt = `Extract resume information and return ONLY valid JSON. No explanations, no markdown, no extra text.
 
 REQUIRED JSON FORMAT:
@@ -139,49 +155,46 @@ RULES:
 RESUME TEXT:
 ${ocrResult.extractedText.substring(0, 3000)}`;
 
-          const parseResult = await model.generateContent(parsePrompt);
-          const parsedText = parseResult.response.text();
+          const response = await fetch(ZAI_API_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${ZAI_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: ZAI_MODEL,
+              messages: [
+                {
+                  role: "user",
+                  content: parsePrompt
+                }
+              ],
+              temperature: 0.1,
+              max_tokens: 2000
+            })
+          });
 
-          // Clean up the response to extract JSON
-          let jsonText = parsedText.trim();
-          
-          // Remove markdown code blocks
-          if (jsonText.startsWith('```json')) {
-            jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-          } else if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+          if (!response.ok) {
+            const errorPayload = await response.text().catch(() => "");
+            throw new Error(`Z AI parsing request failed: ${response.status} ${errorPayload}`);
           }
 
-          // Find JSON object boundaries more carefully
-          const startIndex = jsonText.indexOf('{');
-          const lastIndex = jsonText.lastIndexOf('}');
-          
-          if (startIndex === -1 || lastIndex === -1 || startIndex >= lastIndex) {
-            throw new Error("No valid JSON object found in AI response");
+          const parseResult = await response.json();
+          const content = parseResult?.choices?.[0]?.message?.content;
+          const parsedText = typeof content === "string"
+            ? content
+            : Array.isArray(content)
+              ? content.map((item: { text?: string }) => item?.text || "").join(" ")
+              : "";
+
+          if (!parsedText.trim()) {
+            throw new Error("Z AI returned empty parsing response");
           }
-          
-          const jsonString = jsonText.substring(startIndex, lastIndex + 1);
-          
-          // Clean up common JSON issues
-          let cleanedJson = jsonString
-            .replace(/,\s*}/g, '}')  // Remove trailing commas
-            .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
-            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
-            .replace(/\n/g, ' ')     // Replace newlines with spaces
-            .replace(/\r/g, '')      // Remove carriage returns
-            .replace(/\t/g, ' ')     // Replace tabs with spaces
-            .replace(/\s+/g, ' ');   // Normalize whitespace
-          
-          try {
-            return JSON.parse(cleanedJson);
-          } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            console.error('Cleaned JSON string:', cleanedJson.substring(0, 500) + '...');
-            throw new Error(`Failed to parse AI response as JSON: ${parseError}`);
-          }
+
+          return extractJsonFromModelOutput(parsedText);
         });
 
-        console.log("Successfully parsed resume data with AI");
+        console.log("Successfully parsed resume data with Z AI");
       } else {
         throw new Error("Insufficient text extracted for AI parsing");
       }

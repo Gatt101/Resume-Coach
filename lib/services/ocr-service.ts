@@ -1,18 +1,8 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const GEMINI_REQUEST_OPTIONS = { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" };
-
-// Initialize Gemini AI
-let genAI: GoogleGenerativeAI | null = null;
-try {
-    if (process.env.GEMINI_API_KEY) {
-        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    }
-} catch (error) {
-    console.error("Error initializing Gemini AI:", error);
-}
+const ZAI_API_URL = process.env.ZAI_API_URL || "https://api.z.ai/api/paas/v4/chat/completions";
+const ZAI_MODEL = process.env.ZAI_MODEL || "glm-4.7";
+const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.OPENAI_API_KEY;
 
 export interface TextRegion {
     id: string;
@@ -35,7 +25,7 @@ export interface OCRResult {
         base64?: string;
     };
     processingTime: number;
-    method: 'gemini-vision' | 'mammoth' | 'plain-text' | 'fallback';
+    method: 'zai-vision' | 'mammoth' | 'plain-text' | 'fallback';
 }
 
 export interface OCRError {
@@ -51,16 +41,16 @@ export class EnhancedOCRService {
         maxRetries: number = 3,
         baseDelay: number = 1000
     ): Promise<T> {
-        let lastError: Error;
+        let lastError: Error = new Error("OCR retry failed");
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 return await fn();
-            } catch (error: any) {
-                lastError = error;
+            } catch (error: unknown) {
+                lastError = error instanceof Error ? error : new Error(String(error));
 
-                if (error.message?.includes('401') || error.message?.includes('403')) {
-                    throw error;
+                if (lastError.message.includes('401') || lastError.message.includes('403')) {
+                    throw lastError;
                 }
 
                 if (attempt === maxRetries - 1) break;
@@ -150,38 +140,104 @@ export class EnhancedOCRService {
     }
 
     private async processPDF(file: File, buffer: ArrayBuffer, base64: string): Promise<OCRResult> {
-        if (!genAI) {
-            throw new Error("GEMINI_API_UNAVAILABLE");
+        if (!ZAI_API_KEY) {
+            throw new Error("ZAI_API_UNAVAILABLE");
         }
 
         try {
             const extractedText = await this.retryWithBackoff(async () => {
-                const model = genAI!.getGenerativeModel(
-                    { model: GEMINI_MODEL },
-                    GEMINI_REQUEST_OPTIONS
-                );
-
-                const result = await model.generateContent([
-                    `You are an expert OCR system. Extract ALL text from this resume document with maximum accuracy.
+                const dataUrl = `data:${file.type};base64,${base64}`;
+                const prompt = `You are an expert OCR system. Extract ALL text from this resume PDF with maximum accuracy.
 
 INSTRUCTIONS:
-- Extract every word, number, and symbol visible in the document
-- Preserve the original structure and formatting as much as possible
-- Include contact information, work experience, education, skills, etc.
-- If text is unclear, include your best interpretation
-- Do not add explanations or comments
-- Return only the extracted text content
+- Extract every visible word, number, and symbol
+- Preserve structure (headings, bullet points, sections)
+- Include contact details, experience, education, skills, projects
+- If text is unclear, provide best interpretation
+- Return only extracted text, no markdown, no explanations`;
 
-Focus on accuracy and completeness. This is a professional resume document.`,
+                const payloads = [
                     {
-                        inlineData: {
-                            data: base64,
-                            mimeType: file.type
-                        }
+                        model: ZAI_MODEL,
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: prompt },
+                                    { type: "image_url", image_url: { url: dataUrl } }
+                                ]
+                            }
+                        ],
+                        temperature: 0.1,
+                        max_tokens: 4000
+                    },
+                    {
+                        model: ZAI_MODEL,
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: prompt },
+                                    { type: "input_file", input_file: { filename: file.name, file_data: dataUrl } }
+                                ]
+                            }
+                        ],
+                        temperature: 0.1,
+                        max_tokens: 4000
+                    },
+                    {
+                        model: ZAI_MODEL,
+                        messages: [
+                            {
+                                role: "user",
+                                content: `${prompt}\n\nResume PDF data URL:\n${dataUrl}`
+                            }
+                        ],
+                        temperature: 0.1,
+                        max_tokens: 4000
                     }
-                ]);
+                ];
 
-                return result.response.text();
+                let lastError: Error | null = null;
+                for (const requestBody of payloads) {
+                    try {
+                        const response = await fetch(ZAI_API_URL, {
+                            method: "POST",
+                            headers: {
+                                Authorization: `Bearer ${ZAI_API_KEY}`,
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+
+                        if (!response.ok) {
+                            const errorPayload = await response.text().catch(() => "");
+                            lastError = new Error(`Z AI HTTP ${response.status}: ${errorPayload}`);
+                            continue;
+                        }
+
+                        const result = await response.json();
+                        const content = result?.choices?.[0]?.message?.content;
+
+                        if (typeof content === "string" && content.trim().length > 0) {
+                            return content.trim();
+                        }
+
+                        if (Array.isArray(content)) {
+                            const joined = content
+                                .map((item: { type?: string; text?: string }) => item?.text || "")
+                                .join(" ")
+                                .trim();
+                            if (joined) return joined;
+                        }
+
+                        lastError = new Error("Empty OCR response from Z AI");
+                    } catch (requestError) {
+                        lastError = requestError instanceof Error ? requestError : new Error("Unknown Z AI request error");
+                    }
+                }
+
+                throw lastError || new Error("Failed to process PDF with Z AI");
             });
 
             // Analyze confidence and detect errors
@@ -198,7 +254,7 @@ Focus on accuracy and completeness. This is a professional resume document.`,
                     base64: `data:${file.type};base64,${base64}`
                 },
                 processingTime: 0,
-                method: 'gemini-vision'
+                method: 'zai-vision'
             };
 
         } catch (error) {
@@ -265,9 +321,9 @@ Focus on accuracy and completeness. This is a professional resume document.`,
 
     private analyzeTextQuality(text: string): { confidence: number; errorRegions: TextRegion[] } {
         const errorRegions: TextRegion[] = [];
-        let confidence = 0.9; // Start with high confidence for Gemini Vision
+        let confidence = 0.9; // Start with high confidence for AI OCR
 
-        // Check for unclear markers from Gemini
+        // Check for unclear markers from model output
         const unclearMatches = text.matchAll(/\[UNCLEAR: ([^\]]+)\]/g);
         for (const match of unclearMatches) {
             const startIndex = match.index || 0;
@@ -379,8 +435,8 @@ Focus on accuracy and completeness. This is a professional resume document.`,
                 ],
                 recoverable: true
             },
-            "GEMINI_API_UNAVAILABLE": {
-                code: "GEMINI_API_UNAVAILABLE",
+            "ZAI_API_UNAVAILABLE": {
+                code: "ZAI_API_UNAVAILABLE",
                 message: "AI text extraction service is currently unavailable.",
                 suggestions: [
                     "Try uploading a DOCX file instead",

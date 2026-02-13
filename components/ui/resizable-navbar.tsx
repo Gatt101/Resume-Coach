@@ -131,7 +131,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
     <motion.div
       onMouseLeave={() => setHovered(null)}
       className={cn(
-        "absolute inset-0 hidden flex-1 flex-row items-center justify-center space-x-1 text-sm font-medium lg:flex",
+        "absolute inset-0 hidden flex-1 flex-row items-center justify-center space-x-1 text-sm font-medium lg:flex pointer-events-none",
         className,
       )}
     >
@@ -139,7 +139,7 @@ export const NavItems = ({ items, className, onItemClick }: NavItemsProps) => {
         <motion.a
           onMouseEnter={() => setHovered(idx)}
           onClick={onItemClick}
-          className="relative px-4 py-2 text-foreground/70 hover:text-foreground transition-colors duration-300 rounded-full"
+          className="relative px-4 py-2 text-foreground/70 hover:text-foreground transition-colors duration-300 rounded-full pointer-events-auto"
           key={`link-${idx}`}
           href={item.link}
           whileHover={{ scale: 1.05 }}

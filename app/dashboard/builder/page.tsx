@@ -2,7 +2,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Download, FileText, Wand2, Loader2, CheckCircle, Clock, AlertCircle, Github } from "lucide-react"
+import { ArrowLeft, Download, FileText, Wand2, Loader2, CheckCircle, Github, LayoutTemplate, Sparkles, FileDown } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,6 +11,9 @@ import { ModernTemplate } from "@/components/resume-templates/ModernTemplate"
 import { ClassicTemplate } from "@/components/resume-templates/ClassicTemplate"
 import { CreativeTemplate } from "@/components/resume-templates/CreativeTemplate"
 import { ProfessionalTemplate } from "@/components/resume-templates/ProfessionalTemplate"
+import { MinimalTemplate } from "@/components/resume-templates/MinimalTemplate"
+import { ExecutiveTemplate } from "@/components/resume-templates/ExecutiveTemplate"
+import { ModernProfessionalTemplate } from "@/components/resume-templates/ModernProfessionalTemplate"
 import { ExamplePrompts } from "@/components/resume-templates/ExamplePrompts"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -21,7 +24,7 @@ import GitHubResumeButton from "@/components/GitHubResumeButton"
 
 import { ResumeIngestPayload } from "@/lib/services/github-resume-processor"
 import jsPDF from "jspdf"
-import html2canvas from "html2canvas"
+import { toCanvas } from "html-to-image"
 
 export default function BuilderPage() {
     const router = useRouter()
@@ -35,12 +38,17 @@ export default function BuilderPage() {
     const [resumeSource, setResumeSource] = useState<'manual' | 'ai' | 'github' | null>(null)
     const [progress, setProgress] = useState(0)
     const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false)
+    const descriptionLength = description.trim().length
+    const canGenerate = descriptionLength >= 50
 
     const templates = [
         { value: "modern", label: "Modern", description: "Clean, contemporary design with gradient header" },
         { value: "classic", label: "Classic", description: "Traditional, formal layout with serif typography" },
         { value: "creative", label: "Creative", description: "Colorful, innovative design with sidebar layout" },
         { value: "professional", label: "Professional", description: "Corporate-style layout with blue accents" },
+        { value: "minimal", label: "Minimal", description: "Simple, elegant layout with strong readability" },
+        { value: "executive", label: "Executive", description: "Leadership-focused format with premium structure" },
+        { value: "ats", label: "ATS Friendly", description: "Keyword-focused, recruiter and parser friendly" },
     ]
 
     const handleGenerateResume = async () => {
@@ -245,82 +253,88 @@ export default function BuilderPage() {
                 return;
             }
 
-            // Create a canvas from the resume template with better compatibility options
-            const canvas = await html2canvas(resumeElement, {
-                scale: 2, // Higher scale for better quality
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                width: resumeElement.scrollWidth,
-                height: resumeElement.scrollHeight,
-                ignoreElements: (element) => {
-                    // Skip elements that might cause parsing issues
-                    return element.tagName === 'SCRIPT' || element.tagName === 'STYLE';
-                },
-                onclone: (clonedDoc) => {
-                    // Replace modern CSS color functions with fallback colors
-                    const style = clonedDoc.createElement('style');
-                    style.textContent = `
-                        * {
-                            color: inherit !important;
-                            background-color: inherit !important;
-                            border-color: inherit !important;
-                        }
-                        .bg-gradient-to-r { background: linear-gradient(to right, #3b82f6, #1e40af) !important; }
-                        .text-white { color: #ffffff !important; }
-                        .text-gray-600 { color: #4b5563 !important; }
-                        .text-gray-800 { color: #1f2937 !important; }
-                        .text-gray-900 { color: #111827 !important; }
-                        .bg-white { background-color: #ffffff !important; }
-                        .bg-gray-50 { background-color: #f9fafb !important; }
-                        .bg-blue-600 { background-color: #2563eb !important; }
-                        .border-gray-200 { border-color: #e5e7eb !important; }
-                    `;
-                    clonedDoc.head.appendChild(style);
-                    return clonedDoc;
+            // Wait for fonts to avoid layout shifts in exported PDF
+            if (typeof document !== 'undefined' && 'fonts' in document) {
+                try {
+                    await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+                } catch {
+                    // Continue even if font readiness check fails
                 }
-            });
+            }
 
-            // Calculate dimensions for A4 page
-            const imgWidth = 210; // A4 width in mm
-            const pageHeight = 297; // A4 height in mm
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            
-            // Initialize jsPDF
+            // Initialize compact, paginated A4 PDF
             const pdf = new jsPDF({
-                orientation: imgHeight > pageHeight ? 'portrait' : 'portrait',
+                orientation: 'portrait',
                 unit: 'mm',
-                format: 'a4'
+                format: 'a4',
+                compress: true,
             });
 
-            // Convert canvas to image data
-            const imgData = canvas.toDataURL('image/png');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 8;
+            const contentWidth = pageWidth - margin * 2;
+            const contentHeight = pageHeight - margin * 2;
 
-            // If content is longer than one page, we might need to split it
-            if (imgHeight <= pageHeight) {
-                // Fits in one page
-                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-            } else {
-                // Multiple pages needed
-                let yPosition = 0;
-                const pageHeight = 297;
-                
-                while (yPosition < imgHeight) {
-                    if (yPosition > 0) {
-                        pdf.addPage();
-                    }
-                    
-                    pdf.addImage(
-                        imgData, 
-                        'PNG', 
-                        0, 
-                        -yPosition, 
-                        imgWidth, 
-                        imgHeight
-                    );
-                    
-                    yPosition += pageHeight;
+            const captureHost = document.createElement('div');
+            captureHost.style.position = 'fixed';
+            captureHost.style.left = '-100000px';
+            captureHost.style.top = '0';
+            captureHost.style.width = `${Math.max(1, Math.floor(resumeElement.scrollWidth))}px`;
+            captureHost.style.background = '#ffffff';
+            captureHost.style.pointerEvents = 'none';
+            captureHost.style.zIndex = '-1';
+
+            const clonedResume = resumeElement.cloneNode(true) as HTMLElement;
+            clonedResume.style.margin = '0';
+            clonedResume.style.transform = 'none';
+            clonedResume.style.background = '#ffffff';
+            captureHost.appendChild(clonedResume);
+            document.body.appendChild(captureHost);
+
+            let fullCanvas: HTMLCanvasElement;
+            try {
+                fullCanvas = await toCanvas(captureHost, {
+                    cacheBust: true,
+                    pixelRatio: Math.min(window.devicePixelRatio || 1, 1.7),
+                    backgroundColor: '#ffffff',
+                });
+            } finally {
+                document.body.removeChild(captureHost);
+            }
+
+            const pxPerMm = fullCanvas.width / contentWidth;
+            const pageSliceHeightPx = Math.max(1, Math.floor(contentHeight * pxPerMm));
+            let offsetY = 0;
+            let pageIndex = 0;
+
+            while (offsetY < fullCanvas.height) {
+                const remainingPx = fullCanvas.height - offsetY;
+                const sliceHeightPx = Math.min(pageSliceHeightPx, remainingPx);
+
+                const pageCanvas = document.createElement('canvas');
+                pageCanvas.width = fullCanvas.width;
+                pageCanvas.height = sliceHeightPx;
+                const ctx = pageCanvas.getContext('2d');
+
+                if (!ctx) {
+                    throw new Error('Failed to initialize PDF page canvas');
                 }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                ctx.drawImage(fullCanvas, 0, offsetY, fullCanvas.width, sliceHeightPx, 0, 0, pageCanvas.width, pageCanvas.height);
+
+                const imgData = pageCanvas.toDataURL('image/jpeg', 0.82);
+                const renderedHeightMm = sliceHeightPx / pxPerMm;
+
+                if (pageIndex > 0) {
+                    pdf.addPage();
+                }
+
+                pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, renderedHeightMm, undefined, 'FAST');
+                offsetY += sliceHeightPx;
+                pageIndex += 1;
             }
 
             // Sanitize filename
@@ -461,6 +475,12 @@ export default function BuilderPage() {
                     return <CreativeTemplate data={safeResumeData} />
                 case "professional":
                     return <ProfessionalTemplate data={safeResumeData} />
+                case "minimal":
+                    return <MinimalTemplate data={safeResumeData} />
+                case "executive":
+                    return <ExecutiveTemplate data={safeResumeData} />
+                case "ats":
+                    return <ModernProfessionalTemplate data={safeResumeData} />
                 default:
                     return <ModernTemplate data={safeResumeData} />
             }
@@ -509,85 +529,141 @@ export default function BuilderPage() {
 
     // Rest of the component remains unchanged
     return (
-        <div className="min-h-screen bg-dark p-4 sm:p-6">
-            <div className="flex items-center gap-4 mb-6">
-                <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => router.push('/dashboard')}
-                    className="hover:bg-gray-200 transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                </Button>
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-600 rounded-lg">
-                        <Wand2 className="w-6 h-6 text-white" />
+        <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 p-4 text-slate-100 sm:p-6">
+            <div className="pointer-events-none absolute -left-40 top-20 h-80 w-80 rounded-full bg-blue-700/20 blur-3xl" />
+            <div className="pointer-events-none absolute -right-32 top-40 h-72 w-72 rounded-full bg-cyan-600/10 blur-3xl" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_40%)]" />
+            <div className="mx-auto w-full max-w-7xl">
+            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/70 shadow-2xl backdrop-blur">
+                <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-4">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => router.push('/dashboard')}
+                            className="h-11 w-11 border-slate-700 bg-slate-950 text-slate-200 transition-all hover:border-slate-500 hover:bg-slate-800 hover:text-white"
+                            aria-label="Back to dashboard"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                        </Button>
+                        <div className="flex items-start gap-3">
+                            <div className="rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 p-2 shadow-lg shadow-blue-700/30">
+                                <Wand2 className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">AI Resume Builder</h1>
+                                <p className="text-sm text-slate-300 sm:text-base">Create polished, ATS-ready resumes with AI assistance</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="border-blue-400/40 bg-blue-500/10 text-blue-200">{templates.length} templates</Badge>
+                                    <Badge variant="outline" className="border-emerald-400/40 bg-emerald-500/10 text-emerald-200">Auto-save enabled</Badge>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-white">AI Resume Builder</h1>
-                        <p className="text-sm sm:text-base text-gray-400">Create professional resumes with AI assistance</p>
+
+                    <div className="hidden rounded-xl border border-slate-700 bg-slate-950/70 p-3 lg:block">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Current Template</p>
+                        <p className="mt-1 text-base font-semibold text-white">{templates.find((t) => t.value === selectedTemplate)?.label || "Modern"}</p>
                     </div>
                 </div>
-            </div>
+
+                <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 bg-slate-950/40 p-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-3">
+                        <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400"><LayoutTemplate className="h-3.5 w-3.5" /> Selected Template</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">{templates.find((t) => t.value === selectedTemplate)?.label || "Modern"}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-3">
+                        <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400"><Sparkles className="h-3.5 w-3.5" /> Generation Mode</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">AI + Manual + GitHub</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-3">
+                        <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-400"><FileDown className="h-3.5 w-3.5" /> Export</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">Preview + Compressed PDF</p>
+                    </div>
+                </div>
+            </section>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 max-w-2xl mx-auto gap-2 mb-6 sm:mb-8">
-                    <TabsTrigger value="create" className="flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        AI Create
-                    </TabsTrigger>
-                    <TabsTrigger value="github" className="flex items-center gap-2">
-                        <Github className="w-4 h-4" />
-                        GitHub
-                    </TabsTrigger>
-                    <TabsTrigger value="manual" className="flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Manual Entry
-                    </TabsTrigger>
-                    <TabsTrigger value="templates" className="flex items-center gap-2">
-                        <Wand2 className="w-4 h-4" />
-                        Templates
-                    </TabsTrigger>
-                    <TabsTrigger value="preview" disabled={!resume} className="flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Preview
-                        {isLoading && (
-                            <Badge variant="secondary" className="ml-1 text-xs bg-blue-100 text-blue-700">
-                                {progress}%
-                            </Badge>
-                        )}
-                    </TabsTrigger>
-                </TabsList>
+                <div className="mx-auto mb-6 w-full max-w-fit sm:mb-8">
+                    <TabsList className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-700/90 bg-gradient-to-r from-slate-950/95 via-slate-900/90 to-slate-950/95 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+                        <TabsTrigger 
+                            value="create" 
+                            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-transparent px-5 text-sm font-medium text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800/60 hover:text-slate-100 data-[state=active]:border-blue-400/50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-500 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-600/30 data-[state=active]:text-white"
+                        >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">AI Create</span>
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="github" 
+                            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-transparent px-5 text-sm font-medium text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800/60 hover:text-slate-100 data-[state=active]:border-blue-400/50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-500 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-600/30 data-[state=active]:text-white"
+                        >
+                            <Github className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">GitHub</span>
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="manual" 
+                            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-transparent px-5 text-sm font-medium text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800/60 hover:text-slate-100 data-[state=active]:border-blue-400/50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-500 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-600/30 data-[state=active]:text-white"
+                        >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">Manual Entry</span>
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="templates" 
+                            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-transparent px-5 text-sm font-medium text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800/60 hover:text-slate-100 data-[state=active]:border-blue-400/50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-500 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-600/30 data-[state=active]:text-white"
+                        >
+                            <Wand2 className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">Templates</span>
+                        </TabsTrigger>
+                        <TabsTrigger 
+                            value="preview" 
+                            disabled={!resume} 
+                            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-transparent px-5 text-sm font-medium text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800/60 hover:text-slate-100 data-[state=active]:border-blue-400/50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-500 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-600/30 data-[state=active]:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-transparent"
+                        >
+                            <Download className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">Preview</span>
+                            {isLoading && (
+                                <Badge variant="secondary" className="ml-1 bg-blue-100 text-xs text-blue-700">
+                                    {progress}%
+                                </Badge>
+                            )}
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 <TabsContent value="create" className="space-y-6">
-                    <Card className="w-full max-w-4xl mx-auto">
+                    <Card className="mx-auto w-full max-w-5xl border-slate-700/80 bg-slate-900/70 shadow-xl backdrop-blur">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-slate-100">
                                 <FileText className="w-5 h-5" />
                                 Tell us about yourself
                             </CardTitle>
-                            <p className="text-gray-400">
+                            <p className="text-slate-300">
                                 Describe your professional background, skills, and career goals. Our AI will create a tailored resume for you.
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">
-                                    Professional Background
-                                </label>
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <label className="block text-sm font-medium text-slate-200">
+                                        Professional Background
+                                    </label>
+                                    <Badge variant="outline" className={`text-xs ${canGenerate ? 'border-emerald-400/50 text-emerald-300' : 'border-slate-600 text-slate-400'}`}>
+                                        {descriptionLength}/50 min
+                                    </Badge>
+                                </div>
                                 <Textarea
                                     placeholder="Example: Software engineer with 5 years of experience in React, Node.js, and Python. Passionate about building scalable web applications and leading development teams. Looking for a senior developer role at a tech company focused on innovation..."
-                                    className="w-full min-h-[140px] sm:min-h-[200px] resize-none"
+                                    className="min-h-[140px] w-full resize-none border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus-visible:ring-blue-500 sm:min-h-[200px]"
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                 />
-                                <p className="text-xs text-gray-400 mt-1">
-                                    Include your experience, skills, achievements, and career objectives (minimum 50 characters)
+                                <p className="mt-1 text-xs text-slate-400">
+                                    Include your experience, skills, achievements, and career objectives (minimum 50 characters).
                                 </p>
                             </div>
 
                             <Collapsible open={showExamples} onOpenChange={setShowExamples}>
-                                <CollapsibleTrigger className="text-sm text-blue-50 hover:text-blue-800 font-medium">
+                                <CollapsibleTrigger className="text-sm font-medium text-blue-300 transition-colors hover:text-blue-200">
                                     {showExamples ? 'Hide' : 'Show'} example prompts →
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="mt-3">
@@ -599,22 +675,22 @@ export default function BuilderPage() {
                             </Collapsible>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-3">
+                                <label className="mb-3 block text-sm font-medium text-slate-200">
                                     Quick Template Preview
                                 </label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                                     {templates.map((template) => (
                                         <div
                                             key={template.value}
-                                            className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                            className={`cursor-pointer rounded-lg border p-3 transition-all ${
                                                 selectedTemplate === template.value
-                                                    ? 'border-blue-500 bg-blue-500/10'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                    ? 'border-blue-500 bg-blue-500/15 shadow-md shadow-blue-600/10'
+                                                    : 'border-slate-700 bg-slate-950 hover:border-slate-500'
                                             }`} onClick={() => setSelectedTemplate(template.value)}>
-                                            <h4 className="font-medium text-sm ">{template.label}</h4>
-                                            <p className="text-xs text-gray-600 mt-1">{template.description}</p>
+                                            <h4 className="text-sm font-medium text-slate-100">{template.label}</h4>
+                                            <p className="mt-1 text-xs text-slate-400">{template.description}</p>
                                             {selectedTemplate === template.value && (
-                                                <Badge className="mt-2 text-xs bg-blue-500">Selected</Badge>
+                                                <Badge className="mt-2 bg-blue-600 text-xs">Selected</Badge>
                                             )}
                                         </div>
                                     ))}
@@ -623,8 +699,8 @@ export default function BuilderPage() {
 
                             <Button
                                 onClick={handleGenerateResume}
-                                disabled={isLoading || !description.trim() || description.length < 50}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base sm:text-lg"
+                                disabled={isLoading || !description.trim() || !canGenerate}
+                                className="h-12 w-full bg-blue-600 text-base text-white hover:bg-blue-500 disabled:opacity-50 sm:text-lg"
                             >
                                 {isLoading ? (
                                     <>
@@ -640,12 +716,12 @@ export default function BuilderPage() {
                             </Button>
 
                             {isLoading && (
-                                <div className="space-y-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="space-y-4 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3 sm:p-4">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-blue-900">
+                                        <span className="text-sm font-medium text-blue-200">
                                             Creating your professional resume...
                                         </span>
-                                        <span className="text-sm text-blue-700">
+                                        <span className="text-sm text-blue-300">
                                             {progress}%
                                         </span>
                                     </div>
@@ -655,15 +731,15 @@ export default function BuilderPage() {
                                         className="w-full h-2"
                                     />
                                     
-                                    <div className="text-xs text-blue-600">
-                                        🤖 AI is analyzing your background and crafting the perfect resume...
+                                    <div className="text-xs text-blue-300">
+                                        AI is analyzing your background and crafting your resume.
                                     </div>
                                 </div>
                             )}
 
                             {error && (
-                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                                    <p className="text-red-600 text-sm">{error}</p>
+                                <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4">
+                                    <p className="text-sm text-red-300">{error}</p>
                                 </div>
                             )}
                         </CardContent>
@@ -671,58 +747,58 @@ export default function BuilderPage() {
                 </TabsContent>
 
                 <TabsContent value="github" className="space-y-6">
-                    <Card className="max-w-4xl mx-auto">
+                    <Card className="mx-auto max-w-5xl border-slate-700/80 bg-slate-900/70 shadow-xl backdrop-blur">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-slate-100">
                                 <Github className="w-5 h-5" />
                                 Build Resume from GitHub
                             </CardTitle>
-                            <p className="text-gray-400">
+                            <p className="text-slate-300">
                                 Generate a professional resume from your GitHub profile and repositories. 
-                                We'll analyze your code, projects, and contributions to create a tailored resume.
+                                We will analyze your code, projects, and contributions to create a tailored resume.
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="text-center">
                                 <div className="mb-6">
-                                    <div className="inline-flex items-center gap-3 p-4 bg-gray-50 rounded-lg border">
-                                        <Github className="w-8 h-8 text-gray-600" />
+                                    <div className="inline-flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-950 p-4">
+                                        <Github className="w-8 h-8 text-slate-300" />
                                         <div className="text-left">
-                                            <h3 className="font-medium text-gray-900">Connect Your GitHub</h3>
-                                            <p className="text-sm text-gray-600">
-                                                We'll analyze your repositories, languages, and contributions
+                                            <h3 className="font-medium text-slate-100">Connect Your GitHub</h3>
+                                            <p className="text-sm text-slate-400">
+                                                We will analyze your repositories, languages, and contributions
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
                                         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                             <FileText className="w-4 h-4 text-white" />
                                         </div>
-                                        <h4 className="font-medium text-blue-900 mb-1">Smart Analysis</h4>
-                                        <p className="text-xs text-blue-700">
+                                        <h4 className="mb-1 font-medium text-slate-100">Smart Analysis</h4>
+                                        <p className="text-xs text-slate-400">
                                             Analyzes your repositories, languages, and contribution patterns
                                         </p>
                                     </div>
                                     
-                                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
                                         <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                             <Wand2 className="w-4 h-4 text-white" />
                                         </div>
-                                        <h4 className="font-medium text-green-900 mb-1">Auto-Generated</h4>
-                                        <p className="text-xs text-green-700">
+                                        <h4 className="mb-1 font-medium text-slate-100">Auto-Generated</h4>
+                                        <p className="text-xs text-slate-400">
                                             Creates professional summaries and project descriptions
                                         </p>
                                     </div>
                                     
-                                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                    <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
                                         <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                             <CheckCircle className="w-4 h-4 text-white" />
                                         </div>
-                                        <h4 className="font-medium text-purple-900 mb-1">Fully Editable</h4>
-                                        <p className="text-xs text-purple-700">
+                                        <h4 className="mb-1 font-medium text-slate-100">Fully Editable</h4>
+                                        <p className="text-xs text-slate-400">
                                             Review and customize everything before finalizing
                                         </p>
                                     </div>
@@ -736,14 +812,14 @@ export default function BuilderPage() {
                                     Connect GitHub Profile
                                 </GitHubResumeButton>
 
-                                <p className="text-xs text-gray-500 mt-4">
-                                    Your GitHub profile must be public for analysis. We don't store any tokens or personal data.
+                                <p className="mt-4 text-xs text-slate-400">
+                                    Your GitHub profile must be public for analysis. We do not store any tokens or personal data.
                                 </p>
                             </div>
 
-                            <div className="border-t pt-6">
-                                <h4 className="font-medium text-gray-900 mb-3">What we'll analyze:</h4>
-                                <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                            <div className="border-t border-slate-700 pt-6">
+                                <h4 className="mb-3 font-medium text-slate-100">What we will analyze:</h4>
+                                <div className="grid grid-cols-1 gap-3 text-sm text-slate-300 sm:grid-cols-2">
                                     <div className="flex items-center gap-2">
                                         <CheckCircle className="w-4 h-4 text-green-500" />
                                         Repository activity and stars
@@ -776,8 +852,8 @@ export default function BuilderPage() {
 
                 <TabsContent value="manual" className="space-y-6">
                     <div className="text-center mb-6 sm:mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">Manual Resume Entry</h2>
-                        <p className="text-gray-400">
+                        <h2 className="mb-2 text-2xl font-bold text-slate-100">Manual Resume Entry</h2>
+                        <p className="text-slate-300">
                             {resumeSource === 'ai' ? 
                                 'Edit your AI-generated resume or fill in your details manually' : 
                                 resumeSource === 'github' ?
@@ -786,15 +862,15 @@ export default function BuilderPage() {
                             }
                         </p>
                         {resumeSource === 'ai' && (
-                            <div className="mt-3 p-3 bg-blue-900/50 border border-blue-700 rounded-lg">
-                                <p className="text-blue-200 text-sm">
-                                    ✨ Your AI-generated resume has been loaded below. You can edit any field and regenerate the preview.
+                            <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+                                <p className="text-sm text-blue-200">
+                                    Your AI-generated resume has been loaded below. You can edit any field and regenerate the preview.
                                 </p>
                             </div>
                         )}
                         {resumeSource === 'github' && (
-                            <div className="mt-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
-                                <p className="text-gray-200 text-sm">
+                            <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                                <p className="text-sm text-slate-200">
                                     <Github className="w-4 h-4 inline mr-1" />
                                     Your GitHub-generated resume has been loaded below. You can edit any field and regenerate the preview.
                                 </p>
@@ -802,7 +878,7 @@ export default function BuilderPage() {
                         )}
                     </div>
 
-                    <div className=" rounded-lg shadow-lg p-4 sm:p-6">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-4 shadow-lg sm:p-6">
                         <ManualResumeForm 
                             onSubmit={handleManualSubmit}
                             onCancel={() => setActiveTab("create")}
@@ -813,11 +889,11 @@ export default function BuilderPage() {
 
                 <TabsContent value="templates" className="space-y-6">
                     <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Resume Template</h2>
-                        <p className="text-gray-600">Select a design that best represents your professional style</p>
+                        <h2 className="mb-2 text-2xl font-bold text-slate-100">Choose Your Resume Template</h2>
+                        <p className="text-slate-300">Select a design that best represents your professional style</p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto px-2 sm:px-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 max-w-7xl mx-auto px-2 sm:px-0">
                         {templates.map((template) => (
                             <TemplatePreview
                                 key={template.value}
@@ -832,14 +908,14 @@ export default function BuilderPage() {
                         <Button
                             onClick={() => setActiveTab("create")}
                             variant="outline"
-                            className="mr-4"
+                            className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
                         >
                             Back to Create
                         </Button>
                         <Button
                             onClick={() => setActiveTab("preview")}
                             disabled={!resume}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-blue-600 hover:bg-blue-500"
                         >
                             View Preview
                         </Button>
@@ -849,19 +925,19 @@ export default function BuilderPage() {
                 <TabsContent value="preview" className="space-y-6">
                     {resume ? (
                         <>
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center max-w-4xl mx-auto gap-4">
+                            <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-4 rounded-xl border border-slate-700 bg-slate-900/70 p-4 sm:flex-row sm:items-center">
                                 <div>
-                                    <h2 className="text-xl sm:text-2xl font-bold text-white/120">Your Resume </h2>
-                                    <div className="flex items-center gap-2 text-gray-600">
+                                    <h2 className="text-xl font-bold text-slate-100 sm:text-2xl">Your Resume</h2>
+                                    <div className="flex items-center gap-2 text-slate-300">
                                         <span>Template: {templates.find(t => t.value === selectedTemplate)?.label}</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {resumeSource === 'ai' ? (
                                         <Button
                                             onClick={handleEditResume}
                                             variant="outline"
-                                            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                            className="border-blue-500/50 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
                                         >
                                             <FileText className="w-4 h-4 mr-2" />
                                             Edit Resume
@@ -870,6 +946,7 @@ export default function BuilderPage() {
                                         <Button
                                             onClick={() => setActiveTab("create")}
                                             variant="outline"
+                                            className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
                                         >
                                             Generate New
                                         </Button>
@@ -877,38 +954,39 @@ export default function BuilderPage() {
                                     <Button
                                         onClick={() => setActiveTab("templates")}
                                         variant="outline"
+                                        className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
                                     >
                                         Change Template
                                     </Button>
                                     <Button
                                         onClick={handleDownloadPDF}
-                                        className="bg-green-600 hover:bg-green-700"
+                                        className="bg-emerald-600 hover:bg-emerald-500"
                                     >
                                         <Download className="w-4 h-4 mr-2" />
                                         Download PDF
                                     </Button>
                                      <Button
                                         onClick={saveResumeToAccount}
-                                        className="bg-green-600 hover:bg-green-700"
+                                        className="bg-blue-600 hover:bg-blue-500"
                                     >
-                                        <Download className="w-4 h-4 mr-2" />
+                                        <CheckCircle className="w-4 h-4 mr-2" />
                                         Save to Account
                                     </Button>
                                 </div>
                             </div>
 
                             <div className="w-full px-2 sm:px-0">
-                                <div className="mx-auto bg-white rounded-lg shadow-lg overflow-hidden w-full max-w-4xl" data-resume-preview>
+                                <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-lg border border-slate-700 bg-white shadow-2xl" data-resume-preview>
                                     {renderResumeTemplate()}
                                 </div>
                             </div>
                         </>
                     ) : (
-                        <div className="text-center py-12">
-                            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No Resume Generated Yet</h3>
-                            <p className="text-gray-600 mb-4">Create your resume first to see the preview</p>
-                            <Button onClick={() => setActiveTab("create")} className="bg-blue-600 hover:bg-blue-700">
+                        <div className="mx-auto max-w-xl rounded-xl border border-slate-700 bg-slate-900/70 py-12 text-center">
+                            <FileText className="mx-auto mb-4 h-16 w-16 text-slate-500" />
+                            <h3 className="mb-2 text-lg font-medium text-slate-100">No Resume Generated Yet</h3>
+                            <p className="mb-4 text-slate-300">Create your resume first to see the preview</p>
+                            <Button onClick={() => setActiveTab("create")} className="bg-blue-600 hover:bg-blue-500">
                                 Start Creating
                             </Button>
                         </div>
@@ -922,6 +1000,7 @@ export default function BuilderPage() {
                 onClose={() => setIsGitHubModalOpen(false)}
                 onSuccess={handleGitHubSuccess}
             />
+            </div>
         </div>
     )
 }

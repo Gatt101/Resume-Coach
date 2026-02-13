@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { inngest } from '@/inngest/client'
 
+const ZAI_API_URL = process.env.ZAI_API_URL || 'https://api.z.ai/api/paas/v4/chat/completions'
+const ZAI_MODEL = process.env.ZAI_MODEL || 'glm-4.7'
+const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.OPENAI_API_KEY
+
 export async function POST(request: NextRequest) {
   try {
     const { description, template, targetRole, experienceLevel, preferSync = true } = await request.json()
@@ -92,9 +96,6 @@ async function generateResumeSync(
   targetRole: string = 'general', 
   experienceLevel: string = 'mid'
 ) {
-  // Import the AI agent dynamically to avoid edge runtime issues
-  const { AiResumeBuilderAgent } = await import('@/inngest/function')
-  
   const enhancedPrompt = `
     User Background: ${description}
     Target Role: ${targetRole}
@@ -143,41 +144,62 @@ async function generateResumeSync(
   `
 
   try {
-    const response = await AiResumeBuilderAgent.run(enhancedPrompt)
-    
-    console.log('Raw AI Response:', JSON.stringify(response, null, 2))
-    
-    // Extract JSON from the AI response
-    let resumeData
-    if (response && response.output && response.output[0] && (response.output[0] as any).content) {
-      // Extract the content from the AI response
-      let content = (response.output[0] as any).content
-      
-      // Remove markdown code block markers if present
-      if (content.includes('```json')) {
-        content = content.replace(/```json\n?/g, '').replace(/\n?```/g, '')
-      } else if (content.includes('```')) {
-        content = content.replace(/```\n?/g, '').replace(/\n?```/g, '')
-      }
-      
-      // Clean up any extra whitespace
-      content = content.trim()
-      
-      console.log('Extracted Content:', content)
-      
-      // Parse the JSON
-      resumeData = JSON.parse(content)
-    } else {
-      // Fallback: try to parse the response directly
-      resumeData = typeof response === 'string' ? JSON.parse(response) : response
+    if (!ZAI_API_KEY) {
+      throw new Error('Z AI API key is not configured')
     }
+
+    const response = await fetch(ZAI_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${ZAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: ZAI_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert resume builder. Return only valid JSON with no markdown wrappers.'
+          },
+          {
+            role: 'user',
+            content: enhancedPrompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2600
+      })
+    })
+
+    if (!response.ok) {
+      const errorPayload = await response.text().catch(() => '')
+      throw new Error(`Z AI request failed: ${response.status} ${response.statusText} ${errorPayload}`)
+    }
+
+    const aiResponse = await response.json()
+    const messageContent = aiResponse?.choices?.[0]?.message?.content
+
+    const content = typeof messageContent === 'string'
+      ? messageContent
+      : Array.isArray(messageContent)
+        ? messageContent.map((item: { text?: string }) => item?.text || '').join(' ')
+        : ''
+
+    if (!content.trim()) {
+      throw new Error('Empty resume generation output from Z AI')
+    }
+
+    const resumeData = extractJsonFromText(content)
     
     // Add metadata
     const templateEnhancements = {
       modern: { colorScheme: "blue", layout: "clean" },
       creative: { colorScheme: "purple", layout: "artistic" },
       professional: { colorScheme: "navy", layout: "traditional" },
-      classic: { colorScheme: "black", layout: "minimal" }
+      classic: { colorScheme: "black", layout: "minimal" },
+      minimal: { colorScheme: "gray", layout: "minimal" },
+      executive: { colorScheme: "slate", layout: "executive" },
+      ats: { colorScheme: "black", layout: "ats-optimized" }
     }
 
     return {
@@ -196,6 +218,33 @@ async function generateResumeSync(
     // Fallback to enhanced mock data if AI fails
     return generateEnhancedMockResume(description, template, targetRole, experienceLevel)
   }
+}
+
+function extractJsonFromText(rawOutput: string): Record<string, unknown> {
+  let text = rawOutput.trim()
+
+  if (text.startsWith('```json')) {
+    text = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '')
+  } else if (text.startsWith('```')) {
+    text = text.replace(/^```\s*/i, '').replace(/\s*```$/, '')
+  }
+
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+
+  if (start === -1 || end === -1 || start >= end) {
+    throw new Error('No valid JSON object found in AI response')
+  }
+
+  const jsonText = text.substring(start, end + 1)
+  const cleaned = jsonText
+    .replace(/,\s*}/g, '}')
+    .replace(/,\s*]/g, ']')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return JSON.parse(cleaned) as Record<string, unknown>
 }
 
 // Enhanced mock resume generation as fallback

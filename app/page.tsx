@@ -726,7 +726,7 @@ export default function LandingPage() {
             </div>
           </section>
         </main>
-        <footer className="w-full border-t bg-background/95 backdrop-blur-sm">
+        <footer id="contact" className="w-full border-t bg-background/95 backdrop-blur-sm">
           <div className="container flex flex-col gap-8 px-4 py-10 md:px-6 lg:py-16 max-w-6xl mx-auto">
             <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
               <div className="space-y-4">

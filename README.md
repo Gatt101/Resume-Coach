@@ -16,7 +16,7 @@ NexCV Coach is a Next.js application that helps users build and improve resumes 
 
 - **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, MongoDB
-- **AI Integration**: Google Gemini AI, Gemini Vision API
+- **AI Integration**: Z AI (GLM-4.7), Google Gemini Vision API
 - **Authentication**: Clerk
 - **File Processing**: Mammoth (DOCX), PDF processing
 - **UI Components**: Custom components with Lucide icons
@@ -40,6 +40,10 @@ npm install
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
 CLERK_SECRET_KEY=your_clerk_secret
 GEMINI_API_KEY=your_gemini_api_key
+ZAI_API_KEY=your_zai_api_key
+ZAI_MODEL=glm-4.7
+# Optional override (default is already set in code)
+# ZAI_API_URL=https://api.z.ai/api/paas/v4/chat/completions
 MONGODB_URI=your_mongodb_connection_string
 ```
 
